@@ -18,6 +18,8 @@ if not TOKEN:
 # ================== دیتابیس موقت ==================
 users = {}
 pending_topups = {}
+orders = []
+admins = set()  # ادمین‌ها
 
 # ================== منوها ==================
 def main_menu():
@@ -29,9 +31,7 @@ def main_menu():
     ])
 
 def back_menu(target="back_main"):
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 بازگشت", callback_data=target)]
-    ])
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data=target)]])
 
 # ================== START ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -39,12 +39,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if uid not in users:
         users[uid] = {
             "balance": 0,
-            "join": datetime.now().strftime("%Y/%m/%d - %H:%M")
+            "join": datetime.now().strftime("%Y/%m/%d - %H:%M"),
+            "role": "user"
         }
-    await update.message.reply_text(
-        "👋 به ربات AradVIP خوش آمدید",
-        reply_markup=main_menu()
-    )
+    await update.message.reply_text("👋 به ربات AradVIP خوش آمدید", reply_markup=main_menu())
 
 # ================== CALLBACK ==================
 async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -60,10 +58,10 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # ---------- حساب کاربری ----------
         elif data == "account":
-            u = users.get(uid, {"balance":0, "join":datetime.now().strftime("%Y/%m/%d - %H:%M")})
+            u = users.get(uid, {"balance":0, "join":datetime.now().strftime("%Y/%m/%d - %H:%M"), "role":"user"})
             await q.edit_message_text(
                 f"""👤 شناسه کاربری: {uid}
-🔐 وضعیت: 👤 کاربر عادی
+🔐 وضعیت: {u['role']}
 💰 موجودی کیف پول: {u['balance']:,} تومان
 
 📆 تاریخ عضویت: {u['join']}""",
@@ -162,7 +160,7 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ])
             )
 
-        # ---------- پرداخت با موجودی امن ----------
+        # ---------- خرید با موجودی امن ----------
         elif data.startswith("buy_"):
             try:
                 parts = data.split("_")
@@ -178,6 +176,8 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                     else:
                         users[uid]["balance"] -= price
+                        # ذخیره سفارش
+                        orders.append({"uid": uid, "price": price, "date": datetime.now()})
                         await q.edit_message_text(
                             f"✅ خرید با موفقیت انجام شد\n💰 مبلغ کسر شده: {price:,} تومان",
                             reply_markup=back_menu("back_main")
@@ -206,14 +206,14 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await q.edit_message_text(f"❌ خطا: {e}", reply_markup=back_menu("back_main"))
 
-# ================== رسید پرداخت ==================
+# ================== دریافت رسید پرداخت ==================
 async def receive_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     try:
         if uid in pending_topups:
             amount = pending_topups.pop(uid)
             if uid not in users:
-                users[uid] = {"balance": 0, "join": datetime.now().strftime("%Y/%m/%d - %H:%M")}
+                users[uid] = {"balance":0, "join":datetime.now().strftime("%Y/%m/%d - %H:%M"), "role":"user"}
             users[uid]["balance"] += amount
             await update.message.reply_text(
                 f"✅ موجودی شما به مبلغ {amount:,} تومان افزایش یافت",
@@ -227,7 +227,8 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(callback))
-    app.add_handler(MessageHandler(filters.Document.ALL | filters.Photo.ALL, receive_receipt))
+    # دریافت رسید با عکس یا فایل امن
+    app.add_handler(MessageHandler(filters.Document(True) | filters.PHOTO, receive_receipt))
     app.run_polling()
 
 if __name__ == "__main__":
