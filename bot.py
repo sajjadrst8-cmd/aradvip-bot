@@ -1,46 +1,97 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from datetime import datetime
 
 TOKEN = "8531397872:AAHmyli0cKo2w_Pkg4X9x-JZzE-NXVGsaaE"
 
-# ----------------- منوها -----------------
+# ================== دیتابیس موقت ==================
+users = {}
+pending_topups = {}
+
+# ================== منوها ==================
 def main_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🛒 خرید اشتراک جدید", callback_data="buy")],
+        [InlineKeyboardButton("👤 حساب کاربری", callback_data="account")],
         [InlineKeyboardButton("🎁 اشتراک تست", callback_data="test")],
         [InlineKeyboardButton("💬 پشتیبانی", callback_data="support")]
     ])
 
-def back_btn():
+def back_menu(target="back_main"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 بازگشت", callback_data="back")]
+        [InlineKeyboardButton("🔙 بازگشت", callback_data=target)]
     ])
 
-# ----------------- START -----------------
+# ================== START ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid not in users:
+        users[uid] = {
+            "balance": 0,
+            "join": datetime.now().strftime("%Y/%m/%d - %H:%M")
+        }
     await update.message.reply_text(
         "👋 به ربات AradVIP خوش آمدید",
         reply_markup=main_menu()
     )
 
-# ----------------- CALLBACK -----------------
+# ================== CALLBACK ==================
 async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
+    uid = q.from_user.id
     data = q.data
 
-    # بازگشت
-    if data == "back":
+    # ---------- بازگشت ----------
+    if data == "back_main":
         await q.edit_message_text("🏠 منوی اصلی", reply_markup=main_menu())
 
-    # خرید
+    # ---------- حساب کاربری ----------
+    elif data == "account":
+        u = users[uid]
+        await q.edit_message_text(
+            f"""👤 شناسه کاربری: {uid}
+🔐 وضعیت: 👤 کاربر عادی
+💰 موجودی کیف پول: {u['balance']:,} تومان
+
+📆 تاریخ عضویت: {u['join']}""",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ افزایش موجودی", callback_data="topup")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="back_main")]
+            ])
+        )
+
+    # ---------- افزایش موجودی ----------
+    elif data == "topup":
+        await q.edit_message_text(
+            "💳 مبلغ افزایش موجودی را انتخاب کنید:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💵 100,000 تومان", callback_data="topup_100")],
+                [InlineKeyboardButton("💵 200,000 تومان", callback_data="topup_200")],
+                [InlineKeyboardButton("💵 500,000 تومان", callback_data="topup_500")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="account")]
+            ])
+        )
+
+    elif data.startswith("topup_"):
+        amount = int(data.split("_")[1]) * 1000
+        pending_topups[uid] = amount
+        await q.edit_message_text(
+            f"""💳 پرداخت کارت به کارت
+مبلغ: {amount:,} تومان
+
+📌 پس از پرداخت، رسید را ارسال کنید.""",
+            reply_markup=back_menu("account")
+        )
+
+    # ---------- خرید ----------
     elif data == "buy":
         await q.edit_message_text(
             "📦 نوع اشتراک را انتخاب کنید:",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🚀 V2Ray", callback_data="buy_v2ray")],
                 [InlineKeyboardButton("📱 Biubiu VPN", callback_data="buy_biubiu")],
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="back")]
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="back_main")]
             ])
         )
 
@@ -49,86 +100,69 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(
             "🚀 پلن‌های V2Ray:",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("5 گیگ | 69 هزار", callback_data="pay")],
-                [InlineKeyboardButton("10 گیگ | 109 هزار", callback_data="pay")],
-                [InlineKeyboardButton("30 گیگ | 149 هزار", callback_data="pay")],
-                [InlineKeyboardButton("50 گیگ | 189 هزار", callback_data="pay")],
-                [InlineKeyboardButton("100 گیگ | 329 هزار", callback_data="pay")],
-                [InlineKeyboardButton("200 گیگ | 429 هزار", callback_data="pay")],
-                [InlineKeyboardButton("300 گیگ | 560 هزار", callback_data="pay")],
-                [InlineKeyboardButton("➕ حجم اضافه", callback_data="pay")],
+                [InlineKeyboardButton("5 گیگ | 69 هزار", callback_data="buy_69000")],
+                [InlineKeyboardButton("10 گیگ | 109 هزار", callback_data="buy_109000")],
+                [InlineKeyboardButton("30 گیگ | 149 هزار", callback_data="buy_149000")],
+                [InlineKeyboardButton("50 گیگ | 189 هزار", callback_data="buy_189000")],
+                [InlineKeyboardButton("100 گیگ | 329 هزار", callback_data="buy_329000")],
+                [InlineKeyboardButton("200 گیگ | 429 هزار", callback_data="buy_429000")],
+                [InlineKeyboardButton("300 گیگ | 560 هزار", callback_data="buy_560000")],
                 [InlineKeyboardButton("🔙 بازگشت", callback_data="buy")]
             ])
         )
 
-    # ---------- Biubiu ----------
-    elif data == "buy_biubiu":
-        await q.edit_message_text(
-            "📱 Biubiu VPN:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("👤 تک‌کاربره", callback_data="biu_single")],
-                [InlineKeyboardButton("👥 دوکاربره", callback_data="biu_double")],
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="buy")]
-            ])
-        )
+    elif data.startswith("buy_"):
+        price = int(data.split("_")[1])
+        if users[uid]["balance"] < price:
+            await q.edit_message_text(
+                "❌ موجودی کیف پول کافی نیست",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("➕ افزایش موجودی", callback_data="topup")],
+                    [InlineKeyboardButton("🔙 بازگشت", callback_data="buy")]
+                ])
+            )
+        else:
+            users[uid]["balance"] -= price
+            await q.edit_message_text(
+                f"✅ خرید با موفقیت انجام شد\n💰 مبلغ کسر شده: {price:,} تومان",
+                reply_markup=back_menu("back_main")
+            )
 
-    elif data == "biu_single":
-        await q.edit_message_text(
-            "👤 تک‌کاربره:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("1 ماهه | 100 هزار", callback_data="pay")],
-                [InlineKeyboardButton("2 ماهه | 200 هزار", callback_data="pay")],
-                [InlineKeyboardButton("3 ماهه | 300 هزار", callback_data="pay")],
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu")]
-            ])
-        )
-
-    elif data == "biu_double":
-        await q.edit_message_text(
-            "👥 دوکاربره:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("1 ماهه | 170 هزار", callback_data="pay")],
-                [InlineKeyboardButton("3 ماهه | 300 هزار", callback_data="pay")],
-                [InlineKeyboardButton("6 ماهه | 500 هزار", callback_data="pay")],
-                [InlineKeyboardButton("1 ساله | 1,200 هزار", callback_data="pay")],
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu")]
-            ])
-        )
-
-    # پرداخت (فعلاً نمایشی)
-    elif data == "pay":
-        await q.edit_message_text(
-            "💳 روش پرداخت را انتخاب کنید:\n(در مرحله بعد فعال می‌شود)",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💰 کیف پول", callback_data="back")],
-                [InlineKeyboardButton("💳 کارت به کارت", callback_data="back")],
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="back")]
-            ])
-        )
-
-    # تست
+    # ---------- تست ----------
     elif data == "test":
         await q.edit_message_text(
-            "🎁 دریافت اشتراک تست:",
+            "🎁 اشتراک تست:",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🚀 تست V2Ray", callback_data="back")],
-                [InlineKeyboardButton("📱 تست Biubiu", callback_data="back")],
-                [InlineKeyboardButton("🔙 بازگشت", callback_data="back")]
+                [InlineKeyboardButton("🚀 تست V2Ray", callback_data="back_main")],
+                [InlineKeyboardButton("📱 تست Biubiu", callback_data="back_main")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="back_main")]
             ])
         )
 
-    # پشتیبانی
+    # ---------- پشتیبانی ----------
     elif data == "support":
         await q.edit_message_text(
             "💬 جهت ارتباط با ادمین:\n@AradVIP",
-            reply_markup=back_btn()
+            reply_markup=back_menu("back_main")
         )
 
-# ----------------- MAIN -----------------
+# ================== رسید پرداخت ==================
+async def receive_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid in pending_topups:
+        amount = pending_topups.pop(uid)
+        users[uid]["balance"] += amount
+        await update.message.reply_text(
+            f"✅ موجودی شما به مبلغ {amount:,} تومان افزایش یافت",
+            reply_markup=main_menu()
+        )
+
+# ================== MAIN ==================
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(callback))
+    app.add_handler(MessageHandler(filters.PHOTO | filters.DOCUMENT, receive_receipt))
     app.run_polling()
 
 if __name__ == "__main__":
