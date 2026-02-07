@@ -3,7 +3,7 @@ import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# ------------------- خواندن متغیرها -------------------
+# ------------------- Variables -------------------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MARZBAN_URL = os.getenv("MARZBAN_URL")
 MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME")
@@ -14,7 +14,31 @@ users_db = {}  # uid: {wallet, subscriptions, referrer, join_date, role}
 referrals_db = {}  # inviter_uid: [invitee_uid]
 admins = set()  # uid های ادمین
 
-# ------------------- توابع Marzban -------------------
+# ------------------- تعرفه‌ها -------------------
+v2ray_plans = [
+    ("5 گیگ", 69000),
+    ("10 گیگ", 109000),
+    ("30 گیگ", 149000),
+    ("50 گیگ", 189000),
+    ("100 گیگ", 329000),
+    ("200 گیگ", 429000),
+    ("300 گیگ + حجم اضافه", 560000)
+]
+
+biubiu_single = [
+    ("یک ماهه", 100000),
+    ("دو ماهه", 200000),
+    ("سه ماهه", 300000)
+]
+
+biubiu_double = [
+    ("یک ماهه", 170000),
+    ("سه ماهه", 300000),
+    ("شش ماهه", 500000),
+    ("یک ساله", 1200000)
+]
+
+# ------------------- Marzban functions -------------------
 def marzban_login():
     url = f"{MARZBAN_URL}/api/login"
     data = {"username": MARZBAN_USERNAME, "password": MARZBAN_PASSWORD}
@@ -31,12 +55,6 @@ def create_subscription(token, username, plan):
     resp = requests.post(url, json=data, headers=headers)
     return resp.json()
 
-def check_subscription(token, username):
-    url = f"{MARZBAN_URL}/api/subscription/{username}"
-    headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(url, headers=headers)
-    return resp.json()
-
 # ------------------- کیبورد اصلی -------------------
 def main_menu_keyboard():
     keyboard = [
@@ -50,7 +68,7 @@ def main_menu_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# ------------------- هندلر استارت -------------------
+# ------------------- استارت -------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if uid not in users_db:
@@ -104,13 +122,60 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("کانال آموزش‌ها", url="https://t.me/your_channel")],
                                                                               [InlineKeyboardButton("🔙 بازگشت", callback_data="back")]]))
 
-    # ---------- خرید اشتراک واقعی ----------
-    elif query.data.startswith("buy_"):
-        plan_type = query.data.split("_")[1]  # v2ray یا biubiu
+    # ---------- انتخاب نوع اشتراک V2Ray ----------
+    elif query.data == "buy_v2ray":
+        keyboard = [[InlineKeyboardButton(f"{name} - {price:,} تومان", callback_data=f"buy_v2ray_{i}")]
+                    for i, (name, price) in enumerate(v2ray_plans)]
+        keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new")])
+        await query.edit_message_text("اشتراک V2Ray مورد نظر را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    # ---------- انتخاب نوع اشتراک Biubiu ----------
+    elif query.data == "buy_biubiu":
+        keyboard = [
+            [InlineKeyboardButton("تک کاربره", callback_data="biubiu_single")],
+            [InlineKeyboardButton("دو کاربره", callback_data="biubiu_double")],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new")]
+        ]
+        await query.edit_message_text("نوع Biubiu VPN را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif query.data == "biubiu_single":
+        keyboard = [[InlineKeyboardButton(f"{name} - {price:,} تومان", callback_data=f"buy_biubiu_single_{i}") 
+                     for i, (name, price) in enumerate(biubiu_single)]]
+        keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu")])
+        await query.edit_message_text("اشتراک تک کاربره Biubiu VPN:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif query.data == "biubiu_double":
+        keyboard = [[InlineKeyboardButton(f"{name} - {price:,} تومان", callback_data=f"buy_biubiu_double_{i}") 
+                     for i, (name, price) in enumerate(biubiu_double)]]
+        keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu")])
+        await query.edit_message_text("اشتراک دو کاربره Biubiu VPN:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    # ---------- خرید واقعی اشتراک ----------
+    elif query.data.startswith("buy_v2ray_"):
+        idx = int(query.data.split("_")[-1])
+        name, price = v2ray_plans[idx]
         token = marzban_login()
-        sub = create_subscription(token, f"user_{uid}", plan="1_month_" + plan_type)
+        sub = create_subscription(token, f"user_{uid}", plan=name)
         users_db[uid]["subscriptions"].append(sub)
-        await query.edit_message_text(f"✅ اشتراک شما ساخته شد:\nیوزرنیم: {sub['username']}\nپسورد: {sub['password']}",
+        await query.edit_message_text(f"✅ اشتراک V2Ray ساخته شد: {name}\nقیمت: {price:,} تومان",
+                                      reply_markup=main_menu_keyboard())
+
+    elif query.data.startswith("buy_biubiu_single_"):
+        idx = int(query.data.split("_")[-1])
+        name, price = biubiu_single[idx]
+        token = marzban_login()
+        sub = create_subscription(token, f"user_{uid}", plan=name)
+        users_db[uid]["subscriptions"].append(sub)
+        await query.edit_message_text(f"✅ اشتراک Biubiu VPN تک کاربره ساخته شد: {name}\nقیمت: {price:,} تومان",
+                                      reply_markup=main_menu_keyboard())
+
+    elif query.data.startswith("buy_biubiu_double_"):
+        idx = int(query.data.split("_")[-1])
+        name, price = biubiu_double[idx]
+        token = marzban_login()
+        sub = create_subscription(token, f"user_{uid}", plan=name)
+        users_db[uid]["subscriptions"].append(sub)
+        await query.edit_message_text(f"✅ اشتراک Biubiu VPN دو کاربره ساخته شد: {name}\nقیمت: {price:,} تومان",
                                       reply_markup=main_menu_keyboard())
 
     # ---------- اشتراک تست ----------
