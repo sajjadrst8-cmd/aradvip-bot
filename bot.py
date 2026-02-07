@@ -2,7 +2,7 @@ import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("8589323355:AAFCd6pR3VOLuoCUyId3Kz6hsMl5wZITagE")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ ربات روی سرور آنلاین است")
