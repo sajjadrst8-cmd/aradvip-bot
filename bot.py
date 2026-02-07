@@ -2,7 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from datetime import datetime
 
-TOKEN = "8531397872:AAHmyli0cKo2w_Pkg4X9x-JZzE-NXVGsaaE"
+TOKEN = "BOT_TOKEN_HERE"
 
 # ================== دیتابیس موقت ==================
 users = {}
@@ -73,7 +73,7 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
 
-    elif data.startswith("topup_"):
+    elif data.startswith("topup_") and data.split("_")[1].isdigit():
         amount = int(data.split("_")[1]) * 1000
         pending_topups[uid] = amount
         await q.edit_message_text(
@@ -111,7 +111,42 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
 
-    elif data.startswith("buy_"):
+    # ---------- Biubiu ----------
+    elif data == "buy_biubiu":
+        await q.edit_message_text(
+            "📱 Biubiu VPN:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("👤 تک‌کاربره", callback_data="biu_single")],
+                [InlineKeyboardButton("👥 دوکاربره", callback_data="biu_double")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="buy")]
+            ])
+        )
+
+    elif data == "biu_single":
+        await q.edit_message_text(
+            "👤 تک‌کاربره:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("1 ماهه | 100 هزار", callback_data="buy_100000")],
+                [InlineKeyboardButton("2 ماهه | 200 هزار", callback_data="buy_200000")],
+                [InlineKeyboardButton("3 ماهه | 300 هزار", callback_data="buy_300000")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu")]
+            ])
+        )
+
+    elif data == "biu_double":
+        await q.edit_message_text(
+            "👥 دوکاربره:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("1 ماهه | 170 هزار", callback_data="buy_170000")],
+                [InlineKeyboardButton("3 ماهه | 300 هزار", callback_data="buy_300000")],
+                [InlineKeyboardButton("6 ماهه | 500 هزار", callback_data="buy_500000")],
+                [InlineKeyboardButton("1 ساله | 1,200 هزار", callback_data="buy_1200000")],
+                [InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu")]
+            ])
+        )
+
+    # ---------- پرداخت با موجودی ----------
+    elif data.startswith("buy_") and data.split("_")[1].isdigit():
         price = int(data.split("_")[1])
         if users[uid]["balance"] < price:
             await q.edit_message_text(
