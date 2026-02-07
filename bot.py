@@ -1,165 +1,123 @@
-# bot.py
 import os
-import logging
-from datetime import datetime
+import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
-import csv
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# ---------- خواندن توکن ربات و اطلاعات Marzban از Railway ----------
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MARZBAN_URL = os.getenv("MARZBAN_URL")
+MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME")
+MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD")
 
-# --- دیتابیس ساده ---
-USERS = {}  # اطلاعات کاربر
-SUBSCRIPTIONS = {}  # اشتراک‌ها
-ADMINS = [123456789]  # ایدی ادمین ها
+# ---------- دیتابیس موقتی در RAM ----------
+users_db = {}  # uid: {wallet, subscriptions, referrer, join_date, role}
+referrals_db = {}  # inviter_uid: [invitee_uid]
 
-# --- نرخ اشتراک‌ها ---
-V2RAY_SUBS = {
-    "5 گیگ": 69000, "10 گیگ": 109000, "30 گیگ": 149000,
-    "50 گیگ": 189000, "100 گیگ": 329000, "200 گیگ": 429000,
-    "300 گیگ": 560000
-}
-
-BIUBIU_SINGLE = {
-    "یک ماهه": 167000, "دو ماهه": 334000, "سه ماهه": 500000
-}
-
-BIUBIU_DOUBLE = {
-    "یک ماهه": 297000, "سه ماهه": 780000, "شش ماهه": 1270000, "یک ساله": 1690000
-}
-
-# --- Keyboards ---
-def main_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("💳 خرید اشتراک جدید", callback_data="buy_subscription")],
-        [InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="test_subscription")],
-        [InlineKeyboardButton("👤 حساب کاربری", callback_data="account")],
-        [InlineKeyboardButton("📞 پشتیبانی", callback_data="support"),
-         InlineKeyboardButton("📚 آموزش اتصال", callback_data="tutorial")]
-    ])
-
-def account_keyboard(user_id):
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ افزایش موجودی", callback_data=f"add_balance_{user_id}")],
-        [InlineKeyboardButton("👥 زیرمجموعه گیری", callback_data=f"referral_{user_id}")],
-        [InlineKeyboardButton("📝 اشتراک‌های من", callback_data=f"my_subs_{user_id}")],
-        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_main")]
-    ])
-
-def admin_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 گزارش مالی", callback_data="admin_financial")],
-        [InlineKeyboardButton("👥 مدیریت کاربران", callback_data="admin_users")],
-        [InlineKeyboardButton("💳 مدیریت اشتراک‌ها", callback_data="admin_subs")],
-        [InlineKeyboardButton("➕ افزودن ادمین", callback_data="admin_add")],
-        [InlineKeyboardButton("➖ حذف ادمین", callback_data="admin_remove")],
-        [InlineKeyboardButton("🔙 بازگشت", callback_data="back_main")]
-    ])
-
-def back_keyboard():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back_main")]])
-
-# --- Command Handlers ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    USERS.setdefault(user.id, {
-        "username": user.username or "",
-        "balance": 0,
-        "subscriptions": [],
-        "referrals": [],
-        "join_date": datetime.now().strftime("%Y/%m/%d")
-    })
-    if user.id in ADMINS:
-        await update.message.reply_text("به پنل ادمین خوش آمدید!", reply_markup=admin_keyboard())
+# ---------- توابع Marzban ----------
+def marzban_login():
+    url = f"{MARZBAN_URL}/api/login"
+    data = {"username": MARZBAN_USERNAME, "password": MARZBAN_PASSWORD}
+    resp = requests.post(url, json=data)
+    if resp.status_code == 200:
+        return resp.json().get("token")
     else:
-        await update.message.reply_text("لطفا یکی از گزینه های زیر رو انتخاب کنید!", reply_markup=main_keyboard())
+        raise Exception("⚠️ ورود به Marzban موفق نبود")
 
-# --- Callback Handlers ---
+def create_subscription(token, username, plan):
+    url = f"{MARZBAN_URL}/api/subscription/create"
+    headers = {"Authorization": f"Bearer {token}"}
+    data = {"username": username, "plan": plan}
+    resp = requests.post(url, json=data, headers=headers)
+    return resp.json()  # {'username':..., 'password':...}
+
+def check_subscription(token, username):
+    url = f"{MARZBAN_URL}/api/subscription/{username}"
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url, headers=headers)
+    return resp.json()
+
+# ---------- منو اصلی ----------
+def main_menu_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("💳 خرید اشتراک جدید", callback_data="buy_new")],
+        [InlineKeyboardButton("🧪 دریافت اشتراک تست", callback_data="get_test")],
+        [InlineKeyboardButton("👤 حساب کاربری", callback_data="account")],
+        [
+            InlineKeyboardButton("📞 پشتیبانی", callback_data="support"),
+            InlineKeyboardButton("📚 آموزش اتصال", callback_data="tutorial")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+# ---------- هندلر استارت ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid not in users_db:
+        users_db[uid] = {"wallet": 0, "subscriptions": [], "referrer": None, "join_date": "1403/12/23", "role": "user"}
+    await update.message.reply_text("به ربات خوش آمدید!", reply_markup=main_menu_keyboard())
+
+# ---------- هندلر دکمه‌ها ----------
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = query.from_user.id
     await query.answer()
+    uid = query.from_user.id
 
-    # --- کاربران عادی ---
-    if query.data == "buy_subscription":
-        # دکمه‌های v2ray و biubiu
+    if query.data == "buy_new":
         keyboard = [
-            [InlineKeyboardButton("v2ray", callback_data="buy_v2ray")],
-            [InlineKeyboardButton("biubiu VPN", callback_data="buy_biubiu")],
-            [InlineKeyboardButton("🔙 بازگشت", callback_data="back_main")]
+            [InlineKeyboardButton("V2Ray", callback_data="buy_v2ray")],
+            [InlineKeyboardButton("Biubiu VPN", callback_data="buy_biubiu")],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data="back")]
         ]
-        await query.edit_message_text("انتخاب سرویس:", reply_markup=InlineKeyboardMarkup(keyboard))
-    
-    elif query.data == "test_subscription":
+        await query.edit_message_text("نوع اشتراک را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif query.data == "get_test":
         keyboard = [
-            [InlineKeyboardButton("تست v2ray", callback_data="test_v2ray")],
-            [InlineKeyboardButton("تست biubiu VPN", callback_data="test_biubiu")],
-            [InlineKeyboardButton("🔙 بازگشت", callback_data="back_main")]
+            [InlineKeyboardButton("تست V2Ray", callback_data="test_v2ray")],
+            [InlineKeyboardButton("تست Biubiu VPN", callback_data="test_biubiu")],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data="back")]
         ]
-        await query.edit_message_text("اشتراک تست:", reply_markup=InlineKeyboardMarkup(keyboard))
-    
+        await query.edit_message_text("اشتراک تست خود را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+
     elif query.data == "account":
-        user = USERS.get(user_id)
-        text = f"👤 شناسه کاربری: {user_id}\n🔐 وضعیت: 👤 کاربر عادی\n💰 موجودی کیف پول: {user['balance']} تومان\n👥 تعداد زیرمجموعه‌ها: {len(user['referrals'])}\n📆 تاریخ عضویت: {user['join_date']}"
-        await query.edit_message_text(text, reply_markup=account_keyboard(user_id))
-    
-    elif query.data.startswith("add_balance_"):
-        await query.edit_message_text("لطفا مبلغ مورد نظر برای شارژ کیف پول را وارد کنید:", reply_markup=back_keyboard())
-    
-    elif query.data.startswith("referral_"):
-        link = f"https://t.me/{context.bot.username}?start={user_id}"
-        await query.edit_message_text(f"لینک اختصاصی شما:\n{link}", reply_markup=back_keyboard())
-    
-    elif query.data.startswith("my_subs_"):
-        user = USERS.get(user_id)
-        if user['subscriptions']:
-            text = "📦 اشتراک‌های شما:\n" + "\n".join(user['subscriptions'])
-        else:
-            text = "شما هنوز اشتراکی ندارید."
-        await query.edit_message_text(text, reply_markup=back_keyboard())
-    
+        user = users_db.get(uid)
+        text = f"👤 شناسه کاربری: {uid}\n🔐 وضعیت: {user['role']}\n💰 موجودی کیف پول: {user['wallet']} تومان\n"\
+               f"👥 تعداد زیرمجموعه‌ها: {len(referrals_db.get(uid, []))}\n📆 تاریخ عضویت: {user['join_date']}"
+        keyboard = [
+            [InlineKeyboardButton("➕ افزایش موجودی", callback_data="add_wallet")],
+            [InlineKeyboardButton("👥 زیرمجموعه گیری", callback_data="referral")],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data="back")]
+        ]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
     elif query.data == "support":
-        await query.edit_message_text("برای ارتباط با ادمین:\n@AradVIP", reply_markup=back_keyboard())
-    
+        text = "جهت ارتباط با ادمین به آیدی زیر پیام دهید:\n@AradVIP"
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="back")]]))
+
     elif query.data == "tutorial":
-        await query.edit_message_text("📚 آموزش اتصال: [لینک کانال آموزش](https://t.me/YourTutorialChannel)", parse_mode="Markdown", reply_markup=back_keyboard())
-    
-    # --- بازگشت به منوی اصلی ---
-    elif query.data == "back_main":
-        if user_id in ADMINS:
-            await query.edit_message_text("پنل ادمین:", reply_markup=admin_keyboard())
-        else:
-            await query.edit_message_text("منوی اصلی:", reply_markup=main_keyboard())
-    
-    # --- پنل ادمین ---
-    elif user_id in ADMINS:
-        if query.data.startswith("admin"):
-            await query.edit_message_text(f"پنل ادمین: {query.data}", reply_markup=back_keyboard())
+        text = "برای آموزش اتصال، به کانال زیر مراجعه کنید:"
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("کانال آموزش‌ها", url="https://t.me/your_channel")],
+                                                                              [InlineKeyboardButton("🔙 بازگشت", callback_data="back")]]))
 
-# --- دریافت متن ---
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    text = update.message.text
-    if text.isdigit():
-        USERS[user_id]["balance"] += int(text)
-        await update.message.reply_text(f"💰 کیف پول شما شارژ شد! موجودی: {USERS[user_id]['balance']} تومان", reply_markup=main_keyboard())
-    else:
-        await update.message.reply_text("پیام دریافت شد.", reply_markup=main_keyboard())
+    elif query.data.startswith("buy_"):
+        plan_type = query.data.split("_")[1]  # v2ray یا biubiu
+        token = marzban_login()
+        sub = create_subscription(token, f"user_{uid}", plan="1_month_" + plan_type)
+        await query.edit_message_text(f"✅ اشتراک شما ساخته شد:\nیوزرنیم: {sub['username']}\nپسورد: {sub['password']}",
+                                      reply_markup=main_menu_keyboard())
 
-# --- Main ---
+    elif query.data.startswith("test_"):
+        plan_type = query.data.split("_")[1]
+        await query.edit_message_text(f"✅ اشتراک تست {plan_type.upper()} ساخته شد",
+                                      reply_markup=main_menu_keyboard())
+
+    elif query.data == "back":
+        await query.edit_message_text("بازگشت به منوی اصلی:", reply_markup=main_menu_keyboard())
+
+# ---------- هندلر اصلی ----------
 def main():
-    TOKEN = os.getenv("BOT_TOKEN")  # توکن از Environment Variable میاد
-    app = ApplicationBuilder().token(TOKEN).build()
-    
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    
-    print("Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
