@@ -145,23 +145,25 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
 
-    # ---------- پرداخت با موجودی ----------
-    elif data.startswith("buy_") and data.split("_")[1].isdigit():
-        price = int(data.split("_")[1])
-        if users[uid]["balance"] < price:
-            await q.edit_message_text(
-                "❌ موجودی کیف پول کافی نیست",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("➕ افزایش موجودی", callback_data="topup")],
-                    [InlineKeyboardButton("🔙 بازگشت", callback_data="buy")]
-                ])
-            )
-        else:
-            users[uid]["balance"] -= price
-            await q.edit_message_text(
-                f"✅ خرید با موفقیت انجام شد\n💰 مبلغ کسر شده: {price:,} تومان",
-                reply_markup=back_menu("back_main")
-            )
+    # ---------- پرداخت با موجودی (اصلاح‌شده برای جلوگیری از ارور) ----------
+    elif data.startswith("buy_"):
+        parts = data.split("_")
+        if len(parts) > 1 and parts[1].isdigit():  # فقط عدد واقعی
+            price = int(parts[1])
+            if users[uid]["balance"] < price:
+                await q.edit_message_text(
+                    "❌ موجودی کیف پول کافی نیست",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("➕ افزایش موجودی", callback_data="topup")],
+                        [InlineKeyboardButton("🔙 بازگشت", callback_data="buy")]
+                    ])
+                )
+            else:
+                users[uid]["balance"] -= price
+                await q.edit_message_text(
+                    f"✅ خرید با موفقیت انجام شد\n💰 مبلغ کسر شده: {price:,} تومان",
+                    reply_markup=back_menu("back_main")
+                )
 
     # ---------- تست ----------
     elif data == "test":
