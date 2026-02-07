@@ -76,7 +76,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user.id in ADMINS:
         await update.message.reply_text("به پنل ادمین خوش آمدید!", reply_markup=admin_keyboard())
     else:
-        await update.message.reply_text("لطفا یکی از گزینه های زیر رو انتخاب کنید", reply_markup=main_keyboard())
+        await update.message.reply_text("لطفا یکی از گزینه های زیر رو انتخاب کنید!", reply_markup=main_keyboard())
 
 # --- Callback Handlers ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
