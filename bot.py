@@ -2,7 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from datetime import datetime
 
-TOKEN = "BOT_TOKEN_HERE"
+TOKEN = "8531397872:AAHmyli0cKo2w_Pkg4X9x-JZzE-NXVGsaaE"
 
 # ================== دیتابیس موقت ==================
 users = {}
