@@ -145,10 +145,10 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
 
-    # ---------- پرداخت با موجودی (اصلاح‌شده برای جلوگیری از ارور) ----------
+    # ---------- پرداخت با موجودی (اصلاح‌شده) ----------
     elif data.startswith("buy_"):
         parts = data.split("_")
-        if len(parts) > 1 and parts[1].isdigit():  # فقط عدد واقعی
+        if len(parts) > 1 and parts[1].isdigit():
             price = int(parts[1])
             if users[uid]["balance"] < price:
                 await q.edit_message_text(
@@ -199,7 +199,8 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(callback))
-    app.add_handler(MessageHandler(filters.PHOTO | filters.DOCUMENT, receive_receipt))
+    # اصلاح خط پیام‌ها برای نسخه جدید
+    app.add_handler(MessageHandler(filters.Document.ALL | filters.Photo.ALL, receive_receipt))
     app.run_polling()
 
 if __name__ == "__main__":
