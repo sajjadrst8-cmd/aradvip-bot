@@ -3,7 +3,7 @@ import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# خواندن توکن از env
+# --- خواندن توکن از env ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME")
 MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD")
@@ -12,31 +12,34 @@ MARZBAN_API_BASE = "https://v2inj.galexystore.ir/api"
 
 # ---- اتصال به مرزبان ----
 def get_marzban_token():
-    resp = requests.post(f"{MARZBAN_API_BASE}/auth/login",
-                         json={"username": MARZBAN_USERNAME, "password": MARZBAN_PASSWORD})
-    if resp.status_code == 200:
+    try:
+        resp = requests.post(f"{MARZBAN_API_BASE}/auth/login",
+                             json={"username": MARZBAN_USERNAME, "password": MARZBAN_PASSWORD})
+        resp.raise_for_status()
         return resp.json()["access_token"]
-    else:
-        print("خطا در گرفتن توکن مرزبان:", resp.text)
+    except Exception as e:
+        print("خطا در گرفتن توکن مرزبان:", e)
         return None
 
 def get_services(token):
     headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(f"{MARZBAN_API_BASE}/service", headers=headers)
-    if resp.status_code == 200:
-        return resp.json()
-    else:
-        print("خطا در گرفتن سرویس‌ها:", resp.text)
+    try:
+        resp = requests.get(f"{MARZBAN_API_BASE}/service", headers=headers)
+        resp.raise_for_status()
+        return resp.json()  # فرض: JSON شامل id، name، price
+    except Exception as e:
+        print("خطا در گرفتن سرویس‌ها:", e)
         return []
 
 def create_user_service(token, service_id, username):
     headers = {"Authorization": f"Bearer {token}"}
     data = {"username": username, "service_id": service_id, "expire": 30}
-    resp = requests.post(f"{MARZBAN_API_BASE}/users", json=data, headers=headers)
-    if resp.status_code == 200:
+    try:
+        resp = requests.post(f"{MARZBAN_API_BASE}/users", json=data, headers=headers)
+        resp.raise_for_status()
         return resp.json()
-    else:
-        print("خطا در ساخت اکانت:", resp.text)
+    except Exception as e:
+        print("خطا در ساخت اکانت:", e)
         return None
 
 # ---- منوها ----
@@ -45,8 +48,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("💳 خرید اشتراک جدید", callback_data="buy_new")],
         [InlineKeyboardButton("🧪 دریافت اشتراک تست", callback_data="buy_test")],
         [InlineKeyboardButton("👤 حساب کاربری", callback_data="account")],
-        [InlineKeyboardButton("📞 پشتیبانی", url="https://t.me/AradVIP"),
-         InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/joinchat/...")]
+        [
+            InlineKeyboardButton("📞 پشتیبانی", url="https://t.me/AradVIP"),
+            InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/joinchat/...")  # لینک کانال آموزش
+        ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("سلام! من ربات مدیریت اشتراک تو هستم:", reply_markup=reply_markup)
@@ -72,7 +77,6 @@ async def buy_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---- حساب کاربری ----
 async def account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # داده‌های فرضی
     text = (
         "👤 شناسه کاربری: 863961919\n"
         "🔐 وضعیت: کاربر عادی\n"
@@ -102,17 +106,16 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await buy_test(update, context)
     elif data == "account":
         await account(update, context)
-    elif data.startswith("service_"):
+    elif data.startswith("service_") or data.startswith("test_"):
         token = get_marzban_token()
         if not token:
             await query.message.edit_text("خطا در اتصال به مرزبان!")
             return
-        service_type = data.split("_")[1]
+        service_type = data.split("_")[1]  # v2ray, biubiu
         services = get_services(token)
         keyboard = []
         for s in services:
-            if (service_type == "v2ray" and "V2Ray" in s["name"]) or \
-               (service_type == "biubiu" and "Biubiu" in s["name"]):
+            if (service_type.lower() in s["name"].lower()):
                 keyboard.append([InlineKeyboardButton(f"{s['name']} - {s['price']} تومان", callback_data=f"buy_{s['id']}")])
         keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new")])
         reply_markup = InlineKeyboardMarkup(keyboard)
