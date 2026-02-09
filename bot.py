@@ -1,118 +1,105 @@
 import os
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# --- تنظیمات از محیط (Environment Variables) ---
+# --- تنظیمات ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME")
-MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD")
-MARZBAN_API_BASE = "https://v2inj.galexystore.ir/api"
-
-# اطلاعات کارت بانکی
+ADMIN_ID = int(os.getenv("ADMIN_ID", "12345678")) # آیدی عددی خودت را در Railway ست کن
 CARD_NUMBER = os.getenv("CARD_NUMBER", "6037-xxxx-xxxx-xxxx")
-CARD_NAME = os.getenv("CARD_NAME", "نام صاحب حساب")
+CARD_NAME = os.getenv("CARD_NAME", "نام شما")
 
-# ---- توابع کمکی مرزبان ----
-def get_marzban_token():
-    try:
-        resp = requests.post(f"{MARZBAN_API_BASE}/auth/login",
-                             data={"username": MARZBAN_USERNAME, "password": MARZBAN_PASSWORD}) # مرزبان معمولا فرم دیتا میگیرد
-        resp.raise_for_status()
-        return resp.json()["access_token"]
-    except Exception as e:
-        print("خطا در گرفتن توکن مرزبان:", e)
-        return None
+# --- دیتابیس مجازی (در دنیای واقعی باید از SQLite استفاده کنی) ---
+# نکته: با ریستارت شدن Railway این مقادیر صفر می‌شوند. برای دائمی شدن نیاز به دیتابیس است.
+user_wallets = {} 
 
-def get_services(token):
-    headers = {"Authorization": f"Bearer {token}"}
-    try:
-        resp = requests.get(f"{MARZBAN_API_BASE}/service", headers=headers)
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        print("خطا در گرفتن سرویس‌ها:", e)
-        return []
+def get_wallet(user_id):
+    return user_wallets.get(user_id, 0)
 
-# ---- توابع ساخت منو (برای جلوگیری از تکرار کد) ----
-def main_menu_keyboard():
+# ---- منوها ----
+def main_menu():
     keyboard = [
-        [InlineKeyboardButton("💳 خرید اشتراک جدید", callback_data="buy_new")],
-        [InlineKeyboardButton("🧪 دریافت اشتراک تست", callback_data="buy_test")],
-        [InlineKeyboardButton("👤 حساب کاربری", callback_data="account")],
-        [
-            InlineKeyboardButton("📞 پشتیبانی", url="https://t.me/AradVIP"),
-            InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/joinchat/...")
-        ]
+        [InlineKeyboardButton("💳 خرید اشتراک", callback_data="buy_new")],
+        [InlineKeyboardButton("👤 حساب کاربری و شارژ", callback_data="account")],
+        [InlineKeyboardButton("📞 پشتیبانی", url="https://t.me/AradVIP")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# ---- هندلرهای اصلی ----
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "سلام! به ربات مدیریت اشتراک خوش آمدید.\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
+    text = "به ربات خوش آمدید. لطفاً انتخاب کنید:"
     if update.message:
-        await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+        await update.message.reply_text(text, reply_markup=main_menu())
     else:
-        await update.callback_query.message.edit_text(text, reply_markup=main_menu_keyboard())
+        await update.callback_query.message.edit_text(text, reply_markup=main_menu())
 
 async def account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
+    user_id = update.callback_query.from_user.id
+    balance = get_wallet(user_id)
     text = (
-        f"👤 شناسه کاربری: `{query.from_user.id}`\n"
-        "🔐 وضعیت: کاربر عادی\n"
-        "💰 موجودی کیف پول: 0 تومان\n"
-        "--------------------------\n"
-        "جهت خرید ابتدا موجودی خود را افزایش دهید."
+        f"👤 شناسه: `{user_id}`\n"
+        f"💰 موجودی کیف پول: {balance:,} تومان\n\n"
+        "برای خرید اشتراک، باید ابتدا کیف پول خود را شارژ کنید."
     )
     keyboard = [
-        [InlineKeyboardButton("➕ افزایش موجودی (کارت به کارت)", callback_data="wallet_add")],
+        [InlineKeyboardButton("➕ شارژ کیف پول (کارت به کارت)", callback_data="add_funds")],
         [InlineKeyboardButton("🔙 بازگشت", callback_data="start")]
     ]
-    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-async def wallet_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
+async def add_funds(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
-        "💳 **روش پرداخت کارت به کارت**\n\n"
-        f"شماره کارت: `{5057851560122225}`\n"
-        f"به نام: **{سجاد رستگاران}**\n\n"
-        "⚠️ پس از واریز، حتماً تصویر رسید را برای پشتیبانی (@AradVIP) ارسال کنید تا موجودی شما شارژ شود."
+        "🔴 **مراحل شارژ کیف پول:**\n\n"
+        f"1️⃣ مبلغ مورد نظر را به کارت زیر واریز کنید:\n\n"
+        f"💳 `{CARD_NUMBER}`\n"
+        f"👤 بنام: **{CARD_NAME}**\n\n"
+        "2️⃣ **سپس تصویر رسید واریز را همین‌جا ارسال کنید.**\n"
+        "پس از تأیید مدیریت، حساب شما شارژ می‌شود."
     )
-    keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="account")]]
-    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    context.user_data["waiting_for_receipt"] = True
+    await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 انصراف", callback_data="account")]]), parse_mode="Markdown")
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    if data == "start":
-        await start(update, context)
-    elif data == "account":
-        await account(update, context)
-    elif data == "wallet_add":
-        await wallet_add(update, context)
-    elif data == "buy_new":
+# ---- دریافت رسید توسط ادمین ----
+async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("waiting_for_receipt") and (update.message.photo or update.message.document):
+        user = update.message.from_user
+        # ارسال برای ادمین
+        caption = f"📩 رسید جدید دریافت شد!\n\n👤 کاربر: {user.first_name}\n🆔 آیدی: `{user.id}`\n\nآیا واریز تایید می‌شود؟"
         keyboard = [
-            [InlineKeyboardButton("V2Ray", callback_data="service_v2ray")],
-            [InlineKeyboardButton("Biubiu VPN", callback_data="service_biubiu")],
-            [InlineKeyboardButton("🔙 بازگشت", callback_data="start")]
+            [InlineKeyboardButton("✅ تایید و شارژ ۵۰ تومانی", callback_data=f"confirm_{user.id}_50000")],
+            [InlineKeyboardButton("✅ تایید و شارژ ۱۰۰ تومانی", callback_data=f"confirm_{user.id}_100000")],
+            [InlineKeyboardButton("❌ رد رسید", callback_data=f"reject_{user.id}")]
         ]
-        await query.message.edit_text("لطفا نوع اشتراک را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
-    
-    # ... سایر شرط‌ها (buy_test و غیره) را می‌توانید اینجا نگه دارید یا اضافه کنید
-    elif data.startswith("service_"):
-        await query.message.edit_text("در حال دریافت لیست قیمت‌ها از سرور...")
-        # منطق دریافت سرویس‌ها از مرزبان که قبلاً نوشتید...
-
-# ---- اجرای ربات ----
-if __name__ == "__main__":
-    if not TELEGRAM_BOT_TOKEN:
-        print("خطا: توکن ربات تنظیم نشده است!")
-    else:
-        app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(CallbackQueryHandler(button))
+        await context.bot.send_photo(chat_id=ADMIN_ID, photo=update.message.photo[-1].file_id, caption=caption, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         
-        print("Bot is running...")
-        app.run_polling(drop_pending_updates=True)
+        context.user_data["waiting_for_receipt"] = False
+        await update.message.reply_text("✅ رسید شما برای مدیریت ارسال شد. پس از بررسی، موجودی شما افزایش می‌یابد.")
+
+async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data = query.data
+    
+    if data.startswith("confirm_"):
+        _, user_id, amount = data.split("_")
+        user_id = int(user_id)
+        amount = int(amount)
+        
+        # شارژ کیف پول
+        user_wallets[user_id] = get_wallet(user_id) + amount
+        
+        await query.answer(f"حساب کاربر {user_id} شارژ شد.")
+        await query.edit_message_caption(caption=query.message.caption + "\n\n🟢 **تایید و شارژ شد.**")
+        await context.bot.send_message(chat_id=user_id, text=f"🎉 واریز شما تایید شد!\n💰 مبلغ {amount:,} تومان به کیف پول شما اضافه شد.")
+
+    elif data.startswith("reject_"):
+        user_id = int(data.split("_")[1])
+        await query.answer("رسید رد شد.")
+        await query.edit_message_caption(caption=query.message.caption + "\n\n🔴 **رد شد.**")
+        await context.bot.send_message(chat_id=user_id, text="❌ متأسفانه رسید واریز شما توسط مدیریت رد شد. در صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
+
+# ---- اجرا ----
+app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CallbackQueryHandler(admin_callback, pattern="^(confirm|reject)_"))
+app.add_handler(CallbackQueryHandler(button)) # همان دکمه‌های قبلی شما
+app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_receipt))
+app.run_polling()
