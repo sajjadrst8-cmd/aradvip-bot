@@ -39,29 +39,67 @@ def init_db():
 
 init_db()
 
-# --- توابع مرزبان ---
+# --- تنظیمات مرزبان ---
+MARZBAN_URL = "https://v2inj.galexystore.ir"
+MARZBAN_ADMIN_USER = "1804445169" # یوزرنیم ادمین پنل
+MARZBAN_ADMIN_PASS = "1804445169" # پسورد ادمین پنل
+
 def get_marzban_token():
     try:
         url = f"{MARZBAN_URL}/api/admin/token"
-        data = {'username': MARZBAN_ADMIN_USER, 'password': MARZBAN_ADMIN_PASS}
+        data = {
+            'username': MARZBAN_ADMIN_USER,
+            'password': MARZBAN_ADMIN_PASS
+        }
+        # ارسال درخواست برای دریافت توکن (زمان انقضای توکن مرزبان معمولا ۲۴ ساعت است)
         response = requests.post(url, data=data, timeout=10)
-        return response.json().get('access_token')
-    except: return None
+        if response.status_code == 200:
+            return response.json().get('access_token')
+        else:
+            print(f"Marzban Login Error: {response.text}")
+            return None
+    except Exception as e:
+        print(f"Marzban Connection Error: {e}")
+        return None
 
 def create_marzban_user(user_id, plan_name):
     token = get_marzban_token()
-    if not token: return None, None
+    if not token:
+        return None, None
+
+    # استخراج عدد گیگابایت از اسم پلن (مثلا "5 گیگ" -> 5)
     gb = int(re.findall(r'\d+', plan_name)[0]) if re.findall(r'\d+', plan_name) else 10
-    bytes_limit = gb * 1024 * 1024 * 1024
-    headers = {'Authorization': f'Bearer {token}'}
+    bytes_limit = gb * 1024 * 1024 * 1024 # تبدیل به بایت
+    
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
+    
+    # ساخت یوزرنیم منحصر به فرد
     username = f"tg_{user_id}_{int(requests.utils.time.time())}"
-    payload = {"username": username, "proxies": {"vless": {}, "vmess": {}}, "data_limit": bytes_limit}
+    
+    # تنظیمات ساخت کاربر (فعال کردن تمام پروتکل‌های موجود در پنل شما)
+    payload = {
+        "username": username,
+        "proxies": {"vless": {}, "vmess": {}, "trojan": {}, "shadowsocks": {}},
+        "data_limit": bytes_limit,
+        "expire": 0, # بدون محدودیت زمانی (یا می‌توانید بر اساس پلن تغییر دهید)
+        "data_limit_reset_strategy": "no_reset"
+    }
+    
     try:
-        res = requests.post(f"{MARZBAN_URL}/api/user", json=payload, headers=headers, timeout=10)
+        res = requests.post(f"{MARZBAN_URL}/api/user", json=payload, headers=headers, timeout=15)
         if res.status_code == 200:
-            return res.json().get('subscription_url'), username
-    except: pass
+            data = res.json()
+            return data.get('subscription_url'), username
+        else:
+            print(f"Create User Error: {res.text}")
+    except Exception as e:
+        print(f"API Request Error: {e}")
+    
     return None, None
+
 
 # --- هندلرهای تلگرام ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
