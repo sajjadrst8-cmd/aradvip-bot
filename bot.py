@@ -3,7 +3,7 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 
-BOT_TOKEN = "توکن_ربات_تو_اینجا_قرار_بدی"
+BOT_TOKEN = "8531397872:AAHQbLN-Frn1GfTboMYpol36LkepNak1r3M"
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
