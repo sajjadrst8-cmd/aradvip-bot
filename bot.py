@@ -16,7 +16,7 @@ CARD_NAME = "سجاد رستگاران"
 
 # اتصال به دیتابیس PostgreSQL در Railway
 # لینک را از پنل ریلوِی کپی کن و اینجا بذار
-DATABASE_URL = "postgresql://postgres:lsiRZhVlzjnTlcBiNzdOLoRuSHsFpDCP@postgres.railway.internal:5432/railway"
+DATABASE_URL = "postgresql://postgres:lsiRZhVlzjnTlcBiNzdOLoRuSHsFpDCP@maglev.proxy.rlwy.net:15760/railway"
 
 V2RAY_SUBS = [
     {"name": "5 گیگ", "price": 60000},
