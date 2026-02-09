@@ -7,7 +7,7 @@ from marzban_api import MarzbanAPI
 from config import TELEGRAM_BOT_TOKEN
 
 # اتصال Marzban
-marzban = MarzbanAPI()
+marzban = MarzbanAPI.py()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(WELCOME_TEXT, reply_markup=main_menu_keyboard())
