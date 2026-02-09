@@ -5,7 +5,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 # --- تنظیمات ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "12345678"))
-CARD_NUMBER = "6037-9999-8888-7777"
+CARD_NUMBER = "5057851560122225"
 CARD_NAME = "سجاد رستگاران"
 
 # --- تعرفه‌ها ---
