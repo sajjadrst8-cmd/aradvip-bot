@@ -2,3 +2,4 @@ python-telegram-bot
 requests
 qrcode
 pillow
+psycopg2-binary
