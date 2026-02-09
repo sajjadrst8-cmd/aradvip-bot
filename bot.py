@@ -3,8 +3,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # --- تنظیمات اصلی ---
-TOKEN = "YOUR_TOKEN" # توکن ربات را اینجا بگذار
-ADMIN_ID = 12345678  # آیدی عددی خودت را اینجا بگذار
+TOKEN = "8531397872:AAEi36WyX5DOW_GLk6yL44bHVjx0jw2pVn4" # توکن ربات را اینجا بگذار
+ADMIN_ID = 863961919  # آیدی عددی خودت را اینجا بگذار
 CARD_NUMBER = "6037-9999-8888-7777"
 CARD_NAME = "سجاد رستگاران"
 DB_NAME = "bot_data.db"
