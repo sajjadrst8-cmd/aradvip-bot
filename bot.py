@@ -2,7 +2,7 @@ import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# ----------------- تنظیمات لاگ -----------------
+# ----------------- Logging -----------------
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
@@ -20,7 +20,7 @@ BIUVIU_SUBS = [
     {"name": "BiuvIU چند کاربره", "price": "180,000 IRR"},
 ]
 
-# ----------------- Keyboards -----------------
+# ----------------- منوها -----------------
 def main_menu():
     keyboard = [
         [InlineKeyboardButton("اشتراک‌های V2Ray", callback_data="v2ray")],
@@ -48,7 +48,7 @@ def support_menu():
 
 # ----------------- Handlers -----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("سلام! من ربات مدیریت VPN هستم.\nلطفاً یک گزینه انتخاب کنید:", reply_markup=main_menu())
+    await update.message.reply_text("سلام! لطفاً یک گزینه انتخاب کنید:", reply_markup=main_menu())
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -79,10 +79,4 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ----------------- Main -----------------
 if __name__ == "__main__":
     app = ApplicationBuilder().token("YOUR_BOT_TOKEN_HERE").build()
-
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CallbackQueryHandler(button))
-
-    print("ربات شروع به کار کرد...")
-    app.run_polling()
