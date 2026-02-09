@@ -1,51 +1,72 @@
-# bot.py
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes
-from keyboards import *
-from messages import *
-from marzban_api import MarzbanAPI
-from config import TELEGRAM_BOT_TOKEN
+import os
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# اتصال Marzban
-marzban = MarzbanAPI()
+# ----------------------------
+# تنظیمات و متغیرها
+# ----------------------------
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # توکن تلگرام از متغیر محیطی
+WELCOME_TEXT = "سلام! به ربات خوش آمدید."
 
+# ----------------------------
+# لاگینگ
+# ----------------------------
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# ----------------------------
+# کیبورد اصلی
+# ----------------------------
+def main_menu_keyboard():
+    keyboard = [
+        [InlineKeyboardButton("خرید", callback_data="buy")],
+        [InlineKeyboardButton("پشتیبانی", callback_data="support")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+# ----------------------------
+# هندلر استارت
+# ----------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(WELCOME_TEXT, reply_markup=main_menu_keyboard())
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
+# ----------------------------
+# تست اتصال به Marzban API
+# ----------------------------
+import requests
 
-    # منوی خرید اشتراک جدید
-    if data == "buy_new":
-        keyboard = [
-            [InlineKeyboardButton("V2Ray", callback_data="v2ray_menu")],
-            [InlineKeyboardButton("Biuviu VPN", callback_data="biuviu_menu")],
-            [InlineKeyboardButton(BACK, callback_data="back_main")]
-        ]
-        await query.edit_message_text(SUBSCRIPTION_MENU, reply_markup=InlineKeyboardMarkup(keyboard))
+MARZBAN_URL = os.getenv("MARZBAN_URL", "https://v2inj.galexystore.ir/api/auth/login")
+MARZBAN_USER = os.getenv("MARZBAN_USER")
+MARZBAN_PASS = os.getenv("MARZBAN_PASS")
 
-    elif data == "v2ray_menu":
-        await query.edit_message_text("اشتراک‌های V2Ray:", reply_markup=v2ray_menu())
-    elif data.startswith("v2ray_"):
-        idx = int(data.split("_")[1])
-        sub = marzban.get_subscriptions()[idx]  # فقط نمونه، باید متناسب با ID ها باشه
-        await query.edit_message_text(f"خرید {sub['name']} موفق بود!")
+def login_to_marzban():
+    try:
+        r = requests.post(MARZBAN_URL, json={"username": MARZBAN_USER, "password": MARZBAN_PASS})
+        r.raise_for_status()
+        logger.info("ورود به Marzban موفق بود")
+        return r.json()
+    except requests.HTTPError as e:
+        logger.error(f"خطا در ورود به Marzban: {e}")
+        return None
 
-    elif data == "biuviu_menu":
-        await query.edit_message_text("نوع BiuvIU VPN:", reply_markup=biuviu_menu())
-    elif data == "biuviu_single":
-        await query.edit_message_text("اشتراک‌های 1 کاربره:", reply_markup=biuviu_single_menu())
-    elif data == "biuviu_multi":
-        await query.edit_message_text("اشتراک‌های 2 کاربره:", reply_markup=biuviu_multi_menu())
-
-    # بازگشت‌ها
-    elif data.startswith("back"):
-        await query.edit_message_text(WELCOME_TEXT, reply_markup=main_menu_keyboard())
-
+# ----------------------------
+# اجرای ربات
+# ----------------------------
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    login_to_marzban()  # تست اتصال به API قبل از استارت
+
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button))
-    app.run_polling()
+
+    # وب‌هوک: آدرس باید با دامنه شما و مسیر HTTPS باشه
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # مثلا https://example.com/<bot_token>
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.getenv("PORT", 8443)),
+        webhook_url=WEBHOOK_URL
+    )
