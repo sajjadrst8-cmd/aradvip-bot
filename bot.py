@@ -1,8 +1,7 @@
-import sqlite3
+import psycopg2
 import requests
 import re
-import qrcode
-from io import BytesIO
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
@@ -14,7 +13,10 @@ TOKEN = "8222529473:AAGO_jtCpQNx6qG8Kmd3BgCcweyxcQWFjSM"
 ADMIN_ID = 863961919 
 CARD_NUMBER = "6037-9999-8888-7777"
 CARD_NAME = "سجاد رستگاران"
-DB_NAME = "bot_data.db"
+
+# اتصال به دیتابیس PostgreSQL در Railway
+# لینک را از پنل ریلوِی کپی کن و اینجا بذار
+DATABASE_URL = "postgresql://postgres:lsiRZhVlzjnTlcBiNzdOLoRuSHsFpDCP@postgres.railway.internal:5432/railway"
 
 V2RAY_SUBS = [
     {"name": "5 گیگ", "price": 60000},
@@ -22,7 +24,22 @@ V2RAY_SUBS = [
     {"name": "20 گیگ", "price": 150000}
 ]
 
-# --- توابع کمکی ---
+# --- توابع مدیریت دیتابیس ---
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL, sslmode='require')
+
+def init_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('CREATE TABLE IF NOT EXISTS users (user_id BIGINT PRIMARY KEY, balance INTEGER DEFAULT 0)')
+    cur.execute('CREATE TABLE IF NOT EXISTS subs (id SERIAL PRIMARY KEY, user_id BIGINT, plan TEXT, link TEXT, username TEXT)')
+    conn.commit()
+    cur.close()
+    conn.close()
+
+init_db()
+
+# --- توابع مرزبان ---
 def get_marzban_token():
     try:
         url = f"{MARZBAN_URL}/api/admin/token"
@@ -36,11 +53,9 @@ def create_marzban_user(user_id, plan_name):
     if not token: return None, None
     gb = int(re.findall(r'\d+', plan_name)[0]) if re.findall(r'\d+', plan_name) else 10
     bytes_limit = gb * 1024 * 1024 * 1024
-    
     headers = {'Authorization': f'Bearer {token}'}
     username = f"tg_{user_id}_{int(requests.utils.time.time())}"
     payload = {"username": username, "proxies": {"vless": {}, "vmess": {}}, "data_limit": bytes_limit}
-    
     try:
         res = requests.post(f"{MARZBAN_URL}/api/user", json=payload, headers=headers, timeout=10)
         if res.status_code == 200:
@@ -48,132 +63,126 @@ def create_marzban_user(user_id, plan_name):
     except: pass
     return None, None
 
-# --- مدیریت دیتابیس ---
-def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute('CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, balance INTEGER DEFAULT 0)')
-    conn.execute('CREATE TABLE IF NOT EXISTS subs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, plan TEXT, link TEXT, username TEXT)')
-    conn.commit(); conn.close()
-
-init_db()
-
-# --- هندلرهای اصلی ---
+# --- هندلرهای تلگرام ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    conn = sqlite3.connect(DB_NAME)
-    if not conn.execute('SELECT user_id FROM users WHERE user_id=?', (uid,)).fetchone():
-        conn.execute('INSERT INTO users (user_id) VALUES (?)', (uid,))
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT user_id FROM users WHERE user_id=%s', (uid,))
+    if not cur.fetchone():
+        cur.execute('INSERT INTO users (user_id) VALUES (%s)', (uid,))
         conn.commit()
+    cur.close()
     conn.close()
-
     kb = [[InlineKeyboardButton("💳 خرید اشتراک جدید", callback_data="buy_new")],
           [InlineKeyboardButton("📋 اشتراک‌های من", callback_data="my_subs")],
           [InlineKeyboardButton("👤 حساب و شارژ", callback_data="account")]]
-    text = "🚀 به ربات فروش فیلترشکن خوش آمدید!\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
-    
+    text = "🚀 به ربات فروش فیلترشکن خوش آمدید!"
     if update.message: await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
     else: await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kb))
 
 async def account_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.callback_query.from_user.id
-    conn = sqlite3.connect(DB_NAME)
-    bal = conn.execute('SELECT balance FROM users WHERE user_id=?', (uid,)).fetchone()[0]
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT balance FROM users WHERE user_id=%s', (uid,))
+    bal = cur.fetchone()[0]
+    cur.close()
     conn.close()
-    
-    text = f"👤 مشخصات حساب شما:\n\n🆔 آیدی عددی: `{uid}`\n💰 موجودی: {bal:,} تومان"
+    text = f"👤 حساب شما:\n💰 موجودی: {bal:,} تومان"
     kb = [[InlineKeyboardButton("➕ شارژ کیف پول", callback_data="pay_card")],
           [InlineKeyboardButton("🔙 بازگشت", callback_data="start")]]
-    await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+    await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kb))
 
 async def buy_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [[InlineKeyboardButton(f"{p['name']} - {p['price']:,} تومان", callback_data=f"sel|{p['price']}|{p['name']}")] for p in V2RAY_SUBS]
     kb.append([InlineKeyboardButton("🔙 بازگشت", callback_data="start")])
-    await update.callback_query.message.edit_text("لطفاً پکیج مورد نظر را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(kb))
+    await update.callback_query.message.edit_text("لطفاً پکیج را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(kb))
 
 async def select_pay_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, price, name = update.callback_query.data.split("|")
     context.user_data['order'] = {"price": int(price), "name": name}
     kb = [[InlineKeyboardButton("💰 پرداخت از کیف پول", callback_data="pay_wallet")],
           [InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new")]]
-    await update.callback_query.message.edit_text(f"سرویس: {name}\nقیمت: {int(price):,} تومان\nروش پرداخت را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(kb))
+    await update.callback_query.message.edit_text(f"سرویس: {name}\nقیمت: {int(price):,} تومان", reply_markup=InlineKeyboardMarkup(kb))
 
 async def pay_wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.callback_query.from_user.id
     order = context.user_data.get('order')
-    if not order: return
-    
-    conn = sqlite3.connect(DB_NAME)
-    bal = conn.execute('SELECT balance FROM users WHERE user_id=?', (uid,)).fetchone()[0]
-    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT balance FROM users WHERE user_id=%s', (uid,))
+    bal = cur.fetchone()[0]
     if bal >= order['price']:
         sub_url, uname = create_marzban_user(uid, order['name'])
         if sub_url:
-            conn.execute('UPDATE users SET balance = balance - ? WHERE user_id = ?', (order['price'], uid))
-            conn.execute('INSERT INTO subs (user_id, plan, link, username) VALUES (?, ?, ?, ?)', (uid, order['name'], sub_url, uname))
+            cur.execute('UPDATE users SET balance = balance - %s WHERE user_id = %s', (order['price'], uid))
+            cur.execute('INSERT INTO subs (user_id, plan, link, username) VALUES (%s, %s, %s, %s)', (uid, order['name'], sub_url, uname))
             conn.commit()
-            await update.callback_query.message.edit_text("✅ پرداخت موفق! اشتراک شما ساخته شد.\nاز بخش 'اشتراک‌های من' لینک را دریافت کنید.")
+            await update.callback_query.message.edit_text("✅ موفق! از بخش 'اشتراک‌های من' لینک را دریافت کنید.")
         else:
-            await update.callback_query.answer("❌ خطا در اتصال به پنل مرزبان!", show_alert=True)
+            await update.callback_query.answer("❌ خطا در اتصال به پنل!", show_alert=True)
     else:
-        await update.callback_query.answer("❌ موجودی کیف پول کافی نیست!", show_alert=True)
+        await update.callback_query.answer("❌ موجودی کافی نیست!", show_alert=True)
+    cur.close()
     conn.close()
 
 async def pay_card_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = f"💳 جهت شارژ حساب، مبلغ مورد نظر را به کارت زیر واریز کنید:\n\n`{CARD_NUMBER}`\n👤 به نام: {CARD_NAME}\n\n📸 سپس عکس رسید را در همین‌جا ارسال کنید."
+    text = f"💳 واریز به:\n`{CARD_NUMBER}`\n👤 {CARD_NAME}\n\n📸 عکس رسید را بفرستید."
     await update.callback_query.message.edit_text(text, parse_mode="Markdown")
 
 async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.photo:
         photo = update.message.photo[-1].file_id
         uid = update.message.from_user.id
-        kb = [[InlineKeyboardButton("✅ تایید (۵۰ هزارتومان)", callback_data=f"adm_50000_{uid}"),
-               InlineKeyboardButton("✅ تایید (۱۰۰ هزارتومان)", callback_data=f"adm_100000_{uid}")],
-              [InlineKeyboardButton("❌ رد رسید", callback_data=f"adm_reject_{uid}")]]
-        
-        await context.bot.send_photo(ADMIN_ID, photo, caption=f"رسید جدید از: {uid}", reply_markup=InlineKeyboardMarkup(kb))
-        await update.message.reply_text("⏳ رسید شما برای ادمین ارسال شد. پس از تایید حساب شما شارژ می‌شود.")
+        kb = [[InlineKeyboardButton("✅ تایید ۶۰ ت", callback_data=f"adm_60000_{uid}"),
+               InlineKeyboardButton("✅ تایید ۱۰۰ ت", callback_data=f"adm_100000_{uid}")],
+              [InlineKeyboardButton("❌ رد", callback_data=f"adm_reject_{uid}")]]
+        await context.bot.send_photo(ADMIN_ID, photo, caption=f"رسید از: {uid}", reply_markup=InlineKeyboardMarkup(kb))
+        await update.message.reply_text("⏳ رسید برای ادمین ارسال شد.")
 
 async def admin_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = update.callback_query.data.split("_")
-    action = data[1]
-    target_uid = int(data[2])
-    
-    conn = sqlite3.connect(DB_NAME)
+    action, target_uid = data[1], int(data[2])
+    conn = get_db_connection()
+    cur = conn.cursor()
     if action == "reject":
-        await context.bot.send_message(target_uid, "❌ رسید شما توسط ادمین رد شد.")
-        await update.callback_query.edit_message_caption("🔴 رد شد.")
+        await context.bot.send_message(target_uid, "❌ رسید رد شد.")
     else:
         amount = int(action)
-        conn.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (amount, target_uid))
+        cur.execute('UPDATE users SET balance = balance + %s WHERE user_id = %s', (amount, target_uid))
         conn.commit()
-        await context.bot.send_message(target_uid, f"✅ حساب شما مبلغ {amount:,} تومان شارژ شد.")
-        await update.callback_query.edit_message_caption(f"🟢 تایید شد ({amount:,} تومان)")
+        await context.bot.send_message(target_uid, f"✅ حساب شما {amount:,} شارژ شد.")
+    cur.close()
     conn.close()
+    await update.callback_query.edit_message_caption("انجام شد.")
 
 async def my_subs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.callback_query.from_user.id
-    conn = sqlite3.connect(DB_NAME)
-    subs = conn.execute('SELECT id, plan FROM subs WHERE user_id=?', (uid,)).fetchall()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT id, plan FROM subs WHERE user_id=%s', (uid,))
+    subs = cur.fetchall()
+    cur.close()
     conn.close()
     if not subs:
-        await update.callback_query.message.edit_text("شما هیچ اشتراک فعالی ندارید.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="start")]]))
+        await update.callback_query.message.edit_text("اشتراکی ندارید.")
         return
     kb = [[InlineKeyboardButton(f"📦 {s[1]}", callback_data=f"show_{s[0]}")] for s in subs]
-    kb.append([InlineKeyboardButton("🔙 بازگشت", callback_data="start")])
-    await update.callback_query.message.edit_text("لیست اشتراک‌های شما:", reply_markup=InlineKeyboardMarkup(kb))
+    await update.callback_query.message.edit_text("اشتراک‌های شما:", reply_markup=InlineKeyboardMarkup(kb))
 
 async def show_sub(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sid = update.callback_query.data.split("_")[1]
-    conn = sqlite3.connect(DB_NAME)
-    sub = conn.execute('SELECT plan, link, username FROM subs WHERE id=?', (sid,)).fetchone()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT plan, link, username FROM subs WHERE id=%s', (sid,))
+    sub = cur.fetchone()
+    cur.close()
     conn.close()
-    text = f"📋 اشتراک: {sub[0]}\n👤 یوزرنیم: `{sub[2]}`\n\n🔗 لینک اتصال:\n`{sub[1]}`"
-    await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="my_subs")]]), parse_mode="Markdown")
+    await update.callback_query.message.edit_text(f"📋 {sub[0]}\n🔗 `{sub[1]}`", parse_mode="Markdown")
 
-# --- استارت ربات ---
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
-    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(start, pattern="^start$"))
     app.add_handler(CallbackQueryHandler(buy_new, pattern="^buy_new$"))
@@ -185,6 +194,4 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(show_sub, pattern="^show_"))
     app.add_handler(CallbackQueryHandler(admin_decision, pattern="^adm_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_receipt))
-
-    print("✅ ربات آنلاین شد!")
     app.run_polling()
