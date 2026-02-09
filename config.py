@@ -3,7 +3,7 @@
 # تنظیمات اصلی ربات و اتصال Marzban
 
 # توکن ربات تلگرام
-TELEGRAM_BOT_TOKEN = "8531397872:AAGkhPAcb4bE4OQU2etAogJS8_2ALo3rqLM"
+TELEGRAM_BOT_TOKEN = "8222529473:AAGO_jtCpQNx6qG8Kmd3BgCcweyxcQWFjSM"
 
 # اطلاعات Marzban
 MARZBAN_USERNAME = "1804445169"
