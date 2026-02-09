@@ -1,82 +1,118 @@
-import logging
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+import os
+import requests
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# ----------------- Logging -----------------
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# --- تنظیمات از محیط (Environment Variables) ---
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME")
+MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD")
+MARZBAN_API_BASE = "https://v2inj.galexystore.ir/api"
 
-# ----------------- تعرفه‌ها -----------------
-V2RAY_SUBS = [
-    {"name": "V2Ray 1 ماهه", "price": "150,000 IRR"},
-    {"name": "V2Ray 3 ماهه", "price": "400,000 IRR"},
-    {"name": "V2Ray 6 ماهه", "price": "750,000 IRR"},
-]
+# اطلاعات کارت بانکی
+CARD_NUMBER = os.getenv("CARD_NUMBER", "6037-xxxx-xxxx-xxxx")
+CARD_NAME = os.getenv("CARD_NAME", "نام صاحب حساب")
 
-BIUVIU_SUBS = [
-    {"name": "BiuvIU تک کاربره", "price": "100,000 IRR"},
-    {"name": "BiuvIU چند کاربره", "price": "180,000 IRR"},
-]
+# ---- توابع کمکی مرزبان ----
+def get_marzban_token():
+    try:
+        resp = requests.post(f"{MARZBAN_API_BASE}/auth/login",
+                             data={"username": MARZBAN_USERNAME, "password": MARZBAN_PASSWORD}) # مرزبان معمولا فرم دیتا میگیرد
+        resp.raise_for_status()
+        return resp.json()["access_token"]
+    except Exception as e:
+        print("خطا در گرفتن توکن مرزبان:", e)
+        return None
 
-# ----------------- منوها -----------------
-def main_menu():
+def get_services(token):
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        resp = requests.get(f"{MARZBAN_API_BASE}/service", headers=headers)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        print("خطا در گرفتن سرویس‌ها:", e)
+        return []
+
+# ---- توابع ساخت منو (برای جلوگیری از تکرار کد) ----
+def main_menu_keyboard():
     keyboard = [
-        [InlineKeyboardButton("اشتراک‌های V2Ray", callback_data="v2ray")],
-        [InlineKeyboardButton("اشتراک‌های BiuvIU", callback_data="biuviu")],
-        [InlineKeyboardButton("پشتیبانی", callback_data="support")],
+        [InlineKeyboardButton("💳 خرید اشتراک جدید", callback_data="buy_new")],
+        [InlineKeyboardButton("🧪 دریافت اشتراک تست", callback_data="buy_test")],
+        [InlineKeyboardButton("👤 حساب کاربری", callback_data="account")],
+        [
+            InlineKeyboardButton("📞 پشتیبانی", url="https://t.me/AradVIP"),
+            InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/joinchat/...")
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def v2ray_menu():
-    keyboard = [[InlineKeyboardButton(f"{sub['name']} - {sub['price']}", callback_data=f"v2ray_{i}")] for i, sub in enumerate(V2RAY_SUBS)]
-    keyboard.append([InlineKeyboardButton("بازگشت", callback_data="back")])
-    return InlineKeyboardMarkup(keyboard)
-
-def biuviu_menu():
-    keyboard = [[InlineKeyboardButton(f"{sub['name']} - {sub['price']}", callback_data=f"biuviu_{i}")] for i, sub in enumerate(BIUVIU_SUBS)]
-    keyboard.append([InlineKeyboardButton("بازگشت", callback_data="back")])
-    return InlineKeyboardMarkup(keyboard)
-
-def support_menu():
-    keyboard = [
-        [InlineKeyboardButton("تماس با پشتیبانی", url="https://t.me/YourSupport")],
-        [InlineKeyboardButton("بازگشت", callback_data="back")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-# ----------------- Handlers -----------------
+# ---- هندلرهای اصلی ----
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("سلام! لطفاً یک گزینه انتخاب کنید:", reply_markup=main_menu())
+    text = "سلام! به ربات مدیریت اشتراک خوش آمدید.\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
+    if update.message:
+        await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+    else:
+        await update.callback_query.message.edit_text(text, reply_markup=main_menu_keyboard())
+
+async def account(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    text = (
+        f"👤 شناسه کاربری: `{query.from_user.id}`\n"
+        "🔐 وضعیت: کاربر عادی\n"
+        "💰 موجودی کیف پول: 0 تومان\n"
+        "--------------------------\n"
+        "جهت خرید ابتدا موجودی خود را افزایش دهید."
+    )
+    keyboard = [
+        [InlineKeyboardButton("➕ افزایش موجودی (کارت به کارت)", callback_data="wallet_add")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="start")]
+    ]
+    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+
+async def wallet_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    text = (
+        "💳 **روش پرداخت کارت به کارت**\n\n"
+        f"شماره کارت: `{5057851560122225}`\n"
+        f"به نام: **{سجاد رستگاران}**\n\n"
+        "⚠️ پس از واریز، حتماً تصویر رسید را برای پشتیبانی (@AradVIP) ارسال کنید تا موجودی شما شارژ شود."
+    )
+    keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="account")]]
+    await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
     data = query.data
 
-    if data == "v2ray":
-        await query.edit_message_text("اشتراک‌های V2Ray:", reply_markup=v2ray_menu())
-    elif data.startswith("v2ray_"):
-        index = int(data.split("_")[1])
-        sub = V2RAY_SUBS[index]
-        await query.edit_message_text(f"شما اشتراک '{sub['name']}' با قیمت {sub['price']} را انتخاب کردید.\nبرای خرید با پشتیبانی تماس بگیرید.", reply_markup=support_menu())
-    elif data == "biuviu":
-        await query.edit_message_text("نوع BiuvIU VPN:", reply_markup=biuviu_menu())
-    elif data.startswith("biuviu_"):
-        index = int(data.split("_")[1])
-        sub = BIUVIU_SUBS[index]
-        await query.edit_message_text(f"شما اشتراک '{sub['name']}' با قیمت {sub['price']} را انتخاب کردید.\nبرای خرید با پشتیبانی تماس بگیرید.", reply_markup=support_menu())
-    elif data == "support":
-        await query.edit_message_text("پشتیبانی:", reply_markup=support_menu())
-    elif data == "back":
-        await query.edit_message_text("منوی اصلی:", reply_markup=main_menu())
+    if data == "start":
+        await start(update, context)
+    elif data == "account":
+        await account(update, context)
+    elif data == "wallet_add":
+        await wallet_add(update, context)
+    elif data == "buy_new":
+        keyboard = [
+            [InlineKeyboardButton("V2Ray", callback_data="service_v2ray")],
+            [InlineKeyboardButton("Biubiu VPN", callback_data="service_biubiu")],
+            [InlineKeyboardButton("🔙 بازگشت", callback_data="start")]
+        ]
+        await query.message.edit_text("لطفا نوع اشتراک را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    # ... سایر شرط‌ها (buy_test و غیره) را می‌توانید اینجا نگه دارید یا اضافه کنید
+    elif data.startswith("service_"):
+        await query.message.edit_text("در حال دریافت لیست قیمت‌ها از سرور...")
+        # منطق دریافت سرویس‌ها از مرزبان که قبلاً نوشتید...
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("از دکمه‌ها برای ناوبری استفاده کنید.")
-
-# ----------------- Main -----------------
+# ---- اجرای ربات ----
 if __name__ == "__main__":
-    app = ApplicationBuilder().token("YOUR_BOT_TOKEN_HERE").build()
-    app.add_handler(CommandHandler("start", start))
+    if not TELEGRAM_BOT_TOKEN:
+        print("خطا: توکن ربات تنظیم نشده است!")
+    else:
+        app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CallbackQueryHandler(button))
+        
+        print("Bot is running...")
+        app.run_polling(drop_pending_updates=True)
