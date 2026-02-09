@@ -1,79 +1,51 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+# bot.py
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes
+from keyboards import *
+from messages import *
+from marzban_api import MarzbanAPI
+from config import TELEGRAM_BOT_TOKEN
 
-BOT_TOKEN = "8531397872:AAHQbLN-Frn1GfTboMYpol36LkepNak1r3M"
-# --- تعرفه‌ها ---
-subscriptions = {
-    "v2ray": {"name": "V2Ray", "price": "50,000 تومان", "details": "اشتراک V2Ray - 30 روزه"},
-    "biubiu": {"name": "Biubiu VPN", "price": "40,000 تومان", "details": "اشتراک Biubiu VPN - 30 روزه"},
-}
+# اتصال Marzban
+marzban = MarzbanAPI()
 
-# --- منوی اصلی ---
-def main_menu_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("خرید اشتراک جدید", callback_data="buy_subscription")],
-        [InlineKeyboardButton("دریافت اشتراک تست", callback_data="test_subscription")],
-        [InlineKeyboardButton("حساب کاربری", callback_data="account")],
-        [
-            InlineKeyboardButton("پشتیبانی", callback_data="support"),
-            InlineKeyboardButton("آموزش اتصال", callback_data="tutorial")
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-# --- دکمه‌های خرید اشتراک ---
-def subscription_keyboard():
-    keyboard = [
-        [InlineKeyboardButton(f"{subscriptions['v2ray']['name']} - {subscriptions['v2ray']['price']}", callback_data="v2ray")],
-        [InlineKeyboardButton(f"{subscriptions['biubiu']['name']} - {subscriptions['biubiu']['price']}", callback_data="biubiu")],
-        [InlineKeyboardButton("بازگشت به منوی اصلی", callback_data="main_menu")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-# --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("به ربات خوش آمدید 🎉", reply_markup=main_menu_keyboard())
+    await update.message.reply_text(WELCOME_TEXT, reply_markup=main_menu_keyboard())
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()  # جلوگیری از ارور
-
+    await query.answer()
     data = query.data
 
-    if data == "buy_subscription":
-        await query.edit_message_text("📦 سرویس مورد نظر خود را انتخاب کنید:", reply_markup=subscription_keyboard())
+    # منوی خرید اشتراک جدید
+    if data == "buy_new":
+        keyboard = [
+            [InlineKeyboardButton("V2Ray", callback_data="v2ray_menu")],
+            [InlineKeyboardButton("Biuviu VPN", callback_data="biuviu_menu")],
+            [InlineKeyboardButton(BACK, callback_data="back_main")]
+        ]
+        await query.edit_message_text(SUBSCRIPTION_MENU, reply_markup=InlineKeyboardMarkup(keyboard))
 
-    elif data in subscriptions:
-        sub = subscriptions[data]
-        await query.edit_message_text(f"✅ شما سرویس {sub['name']} را انتخاب کردید.\n💰 قیمت: {sub['price']}\n📄 جزئیات: {sub['details']}")
+    elif data == "v2ray_menu":
+        await query.edit_message_text("اشتراک‌های V2Ray:", reply_markup=v2ray_menu())
+    elif data.startswith("v2ray_"):
+        idx = int(data.split("_")[1])
+        sub = marzban.get_subscriptions()[idx]  # فقط نمونه، باید متناسب با ID ها باشه
+        await query.edit_message_text(f"خرید {sub['name']} موفق بود!")
 
-    elif data == "test_subscription":
-        await query.edit_message_text("🧪 اشتراک تست شما آماده است!")
+    elif data == "biuviu_menu":
+        await query.edit_message_text("نوع BiuvIU VPN:", reply_markup=biuviu_menu())
+    elif data == "biuviu_single":
+        await query.edit_message_text("اشتراک‌های 1 کاربره:", reply_markup=biuviu_single_menu())
+    elif data == "biuviu_multi":
+        await query.edit_message_text("اشتراک‌های 2 کاربره:", reply_markup=biuviu_multi_menu())
 
-    elif data == "account":
-        user_id = query.from_user.id
-        await query.edit_message_text(f"👤 آیدی شما: {user_id}\nزیرمجموعه: 0\nاشتراک فعال: ندارد")
-
-    elif data == "support":
-        await query.edit_message_text("💬 برای پشتیبانی با @SupportContact در ارتباط باشید")
-
-    elif data == "tutorial":
-        await query.edit_message_text("📚 آموزش اتصال: ... (لینک یا متن آموزش اینجا)")
-
-    elif data == "main_menu":
-        await query.edit_message_text("به منوی اصلی برگشتید:", reply_markup=main_menu_keyboard())
-
-    else:
-        await query.edit_message_text("❌ گزینه نامعتبر")
-
-# --- Main ---
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
-
-    app.run_polling()
+    # بازگشت‌ها
+    elif data.startswith("back"):
+        await query.edit_message_text(WELCOME_TEXT, reply_markup=main_menu_keyboard())
 
 if __name__ == "__main__":
-    main()
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button))
+    app.run_polling()
