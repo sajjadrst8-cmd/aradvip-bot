@@ -1,144 +1,145 @@
 import os
+import sqlite3
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # --- تنظیمات ---
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "12345678"))
-CARD_NUMBER = "5057851560122225"
+ADMIN_ID = 12345678  # آیدی عددی خودت را اینجا بزن
+CARD_NUMBER = "6037-9999-8888-7777"
 CARD_NAME = "سجاد رستگاران"
+DB_NAME = "bot_data.db"
 
-# --- تعرفه‌ها ---
+# --- دیتای اشتراک‌ها ---
 V2RAY_SUBS = [
-    {"name": "5 گیگ زمان نامحدود", "price": 60000},
-    {"name": "10 گیگ زمان نامحدود", "price": 100000},
-    {"name": "20 گیگ زمان نامحدود", "price": 150000},
-    {"name": "30 گیگ زمان نامحدود", "price": 200000},
-    {"name": "50 گیگ زمان نامحدود", "price": 300000},
-    {"name": "100 گیگ زمان نامحدود", "price": 400000},
-    {"name": "200 گیگ زمان نامحدود", "price": 500000},
+    {"name": "5 گیگ نامحدود", "price": 60000},
+    {"name": "10 گیگ نامحدود", "price": 100000},
+    {"name": "20 گیگ نامحدود", "price": 150000},
+    {"name": "30 گیگ نامحدود", "price": 200000},
+    {"name": "50 گیگ نامحدود", "price": 300000},
 ]
 
-BIUVIU_SINGLE = [
-    {"name": "1 ماهه", "price": 100000},
-    {"name": "2 ماهه", "price": 200000},
-    {"name": "3 ماهه", "price": 300000},
-]
+BIUVIU_SINGLE = [{"name": "1 ماهه", "price": 100000}, {"name": "2 ماهه", "price": 200000}]
+BIUVIU_MULTI = [{"name": "1 ماهه نامحدود", "price": 300000}, {"name": "3 ماهه نامحدود", "price": 500000}]
 
-BIUVIU_MULTI = [
-    {"name": "1 ماهه نامحدود", "price": 300000},
-    {"name": "3 ماهه نامحدود", "price": 500000},
-    {"name": "6 ماهه نامحدود", "price": 1100000},
-    {"name": "12 ماهه نامحدود", "price": 1200000},
-]
+# --- مدیریت دیتابیس ---
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, balance INTEGER DEFAULT 0)')
+    c.execute('CREATE TABLE IF NOT EXISTS subs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, plan TEXT, link TEXT)')
+    conn.commit()
+    conn.close()
 
-user_wallets = {}
+def get_bal(uid):
+    conn = sqlite3.connect(DB_NAME)
+    res = conn.execute('SELECT balance FROM users WHERE user_id=?', (uid,)).fetchone()
+    conn.close()
+    return res[0] if res else 0
 
-def get_wallet(user_id):
-    return user_wallets.get(user_id, 0)
+def add_bal(uid, amt):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute('INSERT OR IGNORE INTO users VALUES (?, 0)', (uid,))
+    conn.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (amt, uid))
+    conn.commit()
+    conn.close()
 
-# ---- هندلرهای منو ----
+init_db()
 
+# --- هندلرهای ربات ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
+    kb = [
         [InlineKeyboardButton("💳 خرید اشتراک جدید", callback_data="buy_new")],
-        [InlineKeyboardButton("👤 حساب کاربری و شارژ", callback_data="account")],
+        [InlineKeyboardButton("📋 اشتراک‌های من", callback_data="my_subs")],
+        [InlineKeyboardButton("👤 حساب و شارژ", callback_data="account")],
         [InlineKeyboardButton("📞 پشتیبانی", url="https://t.me/AradVIP")]
     ]
-    text = "به ربات خوش آمدید. یکی از گزینه‌های زیر را انتخاب کنید:"
-    if update.message:
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    text = "خوش آمدید! یکی از گزینه‌ها را انتخاب کنید:"
+    if update.message: await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
+    else: await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(kb))
 
 async def buy_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("📡 v2ray", callback_data="v2ray_list")],
-        [InlineKeyboardButton("🚀 biubiu VPN", callback_data="biubiu_menu")],
-        [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="start")]
-    ]
-    await update.callback_query.message.edit_text("نوع سرویس خود را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def v2ray_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = []
-    for sub in V2RAY_SUBS:
-        keyboard.append([InlineKeyboardButton(f"{sub['name']} - {sub['price']:,} تومان", callback_data=f"buy_service_v2_{sub['price']}")])
-    keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new")])
-    await update.callback_query.message.edit_text("تعرفه‌های v2ray:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def biubiu_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("👤 1 کاربره", callback_data="biubiu_s")],
-        [InlineKeyboardButton("👥 2 کاربره", callback_data="biubiu_m")],
-        [InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new")]
-    ]
-    await update.callback_query.message.edit_text("تعداد کاربر biubiu VPN را انتخاب کنید:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def biubiu_s_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = []
-    for sub in BIUVIU_SINGLE:
-        keyboard.append([InlineKeyboardButton(f"{sub['name']} - {sub['price']:,} تومان", callback_data=f"buy_service_biu_{sub['price']}")])
-    keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="biubiu_menu")])
-    await update.callback_query.message.edit_text("تعرفه‌های 1 کاربره biubiu:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def biubiu_m_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = []
-    for sub in BIUVIU_MULTI:
-        keyboard.append([InlineKeyboardButton(f"{sub['name']} - {sub['price']:,} تومان", callback_data=f"buy_service_biu_{sub['price']}")])
-    keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="biubiu_menu")])
-    await update.callback_query.message.edit_text("تعرفه‌های 2 کاربره biubiu:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-# ---- سیستم خرید و کیف پول (مشابه قبل) ----
-
-async def account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.callback_query.from_user.id
-    balance = get_wallet(user_id)
-    text = f"👤 شناسه: `{user_id}`\n💰 موجودی: {balance:,} تومان"
-    keyboard = [
-        [InlineKeyboardButton("➕ شارژ کیف پول", callback_data="add_funds")],
+    kb = [
+        [InlineKeyboardButton("📡 v2ray", callback_data="list_v2ray")],
+        [InlineKeyboardButton("🚀 biubiu VPN", callback_data="list_biubiu")],
         [InlineKeyboardButton("🔙 بازگشت", callback_data="start")]
     ]
-    await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await update.callback_query.message.edit_text("نوع سرویس:", reply_markup=InlineKeyboardMarkup(kb))
 
-async def add_funds(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = f"💳 شماره کارت: `{CARD_NUMBER}`\n👤 بنام: {CARD_NAME}\n\nلطفاً پس از واریز، عکس رسید را بفرستید."
-    context.user_data["waiting_for_receipt"] = True
-    await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 انصراف", callback_data="account")]]), parse_mode="Markdown")
+async def list_v2ray(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = [[InlineKeyboardButton(f"{s['name']} - {s['price']:,}", callback_data=f"pay|v2ray|{s['price']}|{s['name']}")] for s in V2RAY_SUBS]
+    kb.append([InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new")])
+    await update.callback_query.message.edit_text("تعرفه‌های v2ray:", reply_markup=InlineKeyboardMarkup(kb))
 
-async def handle_receipt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get("waiting_for_receipt") and (update.message.photo):
-        user = update.message.from_user
-        caption = f"📩 رسید جدید از: {user.id}\nمبلغ تایید شود؟"
-        keyboard = [[InlineKeyboardButton("✅ ۵۰ ت", callback_data=f"conf_{user.id}_50000"), InlineKeyboardButton("✅ ۱۰۰ ت", callback_data=f"conf_{user.id}_100000")],
-                    [InlineKeyboardButton("❌ رد", callback_data=f"rej_{user.id}")]]
-        await context.bot.send_photo(chat_id=ADMIN_ID, photo=update.message.photo[-1].file_id, caption=caption, reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_text("رسید ارسال شد.")
-        context.user_data["waiting_for_receipt"] = False
+async def list_biubiu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = [
+        [InlineKeyboardButton("👤 1 کاربره", callback_data="biu_s"), InlineKeyboardButton("👥 2 کاربره", callback_data="biu_m")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new")]
+    ]
+    await update.callback_query.message.edit_text("انتخاب نوع اشتراک biubiu:", reply_markup=InlineKeyboardMarkup(kb))
 
-async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if query.data.startswith("conf_"):
-        _, uid, amt = query.data.split("_")
-        user_wallets[int(uid)] = get_wallet(int(uid)) + int(amt)
-        await context.bot.send_message(chat_id=int(uid), text=f"✅ حساب شما {amt} شارژ شد.")
-        await query.edit_message_caption("🟢 تایید شد.")
-    elif query.data.startswith("rej_"):
-        uid = query.data.split("_")[1]
-        await context.bot.send_message(chat_id=int(uid), text="❌ رسید شما رد شد.")
-        await query.edit_message_caption("🔴 رد شد.")
+async def biu_s(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = [[InlineKeyboardButton(f"{s['name']} - {s['price']:,}", callback_data=f"pay|biubiu|{s['price']}|{s['name']}")] for s in BIUVIU_SINGLE]
+    kb.append([InlineKeyboardButton("🔙 بازگشت", callback_data="list_biubiu")])
+    await update.callback_query.message.edit_text("تعرفه‌های تک‌کاربره:", reply_markup=InlineKeyboardMarkup(kb))
 
-# --- اجرا ---
-if __name__ == '__main__':
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(start, pattern="^start$"))
-    app.add_handler(CallbackQueryHandler(buy_new, pattern="^buy_new$"))
-    app.add_handler(CallbackQueryHandler(v2ray_list, pattern="^v2ray_list$"))
-    app.add_handler(CallbackQueryHandler(biubiu_menu, pattern="^biubiu_menu$"))
-    app.add_handler(CallbackQueryHandler(biubiu_s_list, pattern="^biubiu_s$"))
-    app.add_handler(CallbackQueryHandler(biubiu_m_list, pattern="^biubiu_m$"))
-    app.add_handler(CallbackQueryHandler(account, pattern="^account$"))
-    app.add_handler(CallbackQueryHandler(add_funds, pattern="^add_funds$"))
-    app.add_handler(CallbackQueryHandler(admin_callback, pattern="^(conf|rej)_"))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_receipt))
-    app.run_polling()
+async def select_pay(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _, stype, price, name = update.callback_query.data.split("|")
+    context.user_data['order'] = {"type": stype, "price": int(price), "name": name}
+    kb = [
+        [InlineKeyboardButton("💰 پرداخت از کیف پول", callback_data="pay_wallet")],
+        [InlineKeyboardButton("💳 کارت به کارت", callback_data="pay_card")],
+        [InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new")]
+    ]
+    await update.callback_query.message.edit_text(f"خرید {name}\nمبلغ: {int(price):,} تومان\nروش پرداخت؟", reply_markup=InlineKeyboardMarkup(kb))
+
+async def pay_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['wait_receipt'] = True
+    await update.callback_query.message.edit_text(f"مبلغ را به کارت زیر واریز و رسید بفرستید:\n\n`{CARD_NUMBER}`\n{CARD_NAME}", parse_mode="Markdown")
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get('wait_receipt'):
+        uid = update.message.from_user.id
+        order = context.user_data.get('order')
+        kb = [[InlineKeyboardButton("✅ تایید", callback_data=f"ok_{uid}"), InlineKeyboardButton("❌ رد", callback_data=f"no_{uid}")]]
+        await context.bot.send_photo(ADMIN_ID, update.message.photo[-1].file_id, caption=f"رسید از {uid}\nبرای: {order['name']}", reply_markup=InlineKeyboardMarkup(kb))
+        await update.message.reply_text("رسید ارسال شد. پس از تایید ادمین (کمتر از ۱۰ دقیقه) اطلاع می‌دهیم.")
+        context.user_data['wait_receipt'] = False
+
+async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    data = update.callback_query.data
+    uid = int(data.split("_")[1])
+    if data.startswith("ok_"):
+        # در اینجا می‌توانید تابع Marzban را صدا بزنید
+        link = "vless://auto-generated-link-here" 
+        conn = sqlite3.connect(DB_NAME)
+        conn.execute('INSERT INTO subs (user_id, plan, link) VALUES (?, ?, ?)', (uid, "اکانت خریداری شده", link))
+        conn.commit()
+        conn.close()
+        await context.bot.send_message(uid, "✅ رسید تایید شد! اشتراک ساخته شد. از بخش 'اشتراک‌های من' دریافت کنید.")
+        await update.callback_query.edit_message_caption("تایید شد.")
+    else:
+        await context.bot.send_message(uid, "❌ رسید شما توسط ادمین رد شد.")
+        await update.callback_query.edit_message_caption("رد شد.")
+
+async def my_subs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.callback_query.from_user.id
+    conn = sqlite3.connect(DB_NAME)
+    subs = conn.execute('SELECT plan, link FROM subs WHERE user_id=?', (uid,)).fetchall()
+    conn.close()
+    text = "اشتراک‌های شما:\n\n" + "\n".join([f"📦 {s[0]}\n`{s[1]}`" for s in subs]) if subs else "اشتراکی ندارید."
+    await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 بازگشت", callback_data="start")]]), parse_mode="Markdown")
+
+# --- استارت ربات ---
+app = ApplicationBuilder().token("8531397872:AAEi36WyX5DOW_GLk6yL44bHVjx0jw2pVn4").build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CallbackQueryHandler(start, pattern="^start$"))
+app.add_handler(CallbackQueryHandler(buy_new, pattern="^buy_new$"))
+app.add_handler(CallbackQueryHandler(list_v2ray, pattern="^list_v2ray$"))
+app.add_handler(CallbackQueryHandler(list_biubiu, pattern="^list_biubiu$"))
+app.add_handler(CallbackQueryHandler(biu_s, pattern="^biu_s$"))
+app.add_handler(CallbackQueryHandler(select_pay, pattern="^pay\|"))
+app.add_handler(CallbackQueryHandler(pay_card, pattern="^pay_card$"))
+app.add_handler(CallbackQueryHandler(my_subs, pattern="^my_subs$"))
+app.add_handler(CallbackQueryHandler(admin_action, pattern="^(ok|no)_"))
+app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+app.run_polling()
