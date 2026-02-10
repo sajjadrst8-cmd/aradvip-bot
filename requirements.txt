@@ -1,2 +1,5 @@
+setuptools
+wheel
 aiogram==2.25.1
 persiantools
+aiohttp==3.8.5
