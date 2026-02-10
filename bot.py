@@ -258,7 +258,8 @@ async def admin_confirm(callback_query: types.CallbackQuery):
     await bot.edit_message_caption(ADMIN_ID, callback_query.message.message_id, caption="این رسید تایید شد ✅")
 
 # --- بخش Biubiu VPN ---
-@dp.message_handler(lambda message: message.text == "Biubiu VPN")
+# --- بخش Biubiu VPN ---
+@dp.message_handler(lambda message: "Biubiu" in message.text) # حساسیت کمتر به فاصله
 async def biubiu_start(message: types.Message):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add("تک کاربره", "دو کاربره")
@@ -267,16 +268,16 @@ async def biubiu_start(message: types.Message):
 
 # --- تعرفه‌های دقیق Biubiu ---
 @dp.message_handler(lambda message: message.text in ["تک کاربره", "دو کاربره"])
-async def biubiu_plans(message: types.Message, state: FSMContext):
+async def biubiu_plans_handler(message: types.Message, state: FSMContext):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     
-    if message.text == "تک کاربره":
+    if "تک" in message.text:
         plans = [
             "1ماهه حجم نامحدود (تک) - 100,000 تومان",
             "2ماهه حجم نامحدود (تک) - 200,000 تومان",
             "3ماهه حجم نامحدود (تک) - 300,000 تومان"
         ]
-    else: # دو کاربره
+    else: 
         plans = [
             "1ماهه حجم نامحدود (دو) - 300,000 تومان",
             "3ماهه حجم نامحدود (دو) - 600,000 تومان",
@@ -288,7 +289,6 @@ async def biubiu_plans(message: types.Message, state: FSMContext):
         keyboard.add(plan)
     keyboard.add("بازگشت")
     
-    await state.update_data(product_type="Biubiu") # ذخیره نوع محصول
     await message.answer(f"📦 تعرفه‌های {message.text} Biubiu:", reply_markup=keyboard)
     await BuyState.choosing_plan.set()
 
