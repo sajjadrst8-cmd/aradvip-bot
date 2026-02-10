@@ -45,22 +45,28 @@ MARZBAN_ADMIN_USER = "1804445169" # یوزرنیم ادمین پنل
 MARZBAN_ADMIN_PASS = "1804445169" # پسورد ادمین پنل
 
 def get_marzban_token():
-    try:
-        url = f"{MARZBAN_URL}/api/admin/token"
-        data = {
-            'username': MARZBAN_ADMIN_USER,
-            'password': MARZBAN_ADMIN_PASS
-        }
-        # ارسال درخواست برای دریافت توکن (زمان انقضای توکن مرزبان معمولا ۲۴ ساعت است)
-        response = requests.post(url, data=data, timeout=30)
-        if response.status_code == 200:
-            return response.json().get('access_token')
-        else:
-            print(f"Marzban Login Error: {response.text}")
-            return None
-    except Exception as e:
-        print(f"Marzban Connection Error: {e}")
-        return None
+    # لیست آدرس‌هایی که ممکن است API روی آن‌ها باشد را تست می‌کنیم
+    potential_urls = [
+        f"{MARZBAN_URL}/api/admin/token",
+        f"{MARZBAN_URL}:443/api/admin/token"
+    ]
+    
+    for url in potential_urls:
+        try:
+            print(f"Trying to connect to: {url}")
+            data = {'username': MARZBAN_ADMIN_USER, 'password': MARZBAN_ADMIN_PASS}
+            # زمان انتظار را بیشتر کردیم (30 ثانیه)
+            response = requests.post(url, data=data, timeout=30)
+            
+            if response.status_code == 200:
+                print("Successfully connected to Marzban!")
+                return response.json().get('access_token')
+            else:
+                print(f"Status Code {response.status_code}: {response.text}")
+        except Exception as e:
+            print(f"Connection failed for {url}: {e}")
+            
+    return None
 
 def create_marzban_user(user_id, plan_name):
     token = get_marzban_token()
