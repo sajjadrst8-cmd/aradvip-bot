@@ -11,7 +11,7 @@ from persiantools.jdatetime import JalaliDateTime
 
 # تنظیمات ربات
 API_TOKEN = 'YOUR_BOT_TOKEN'
-ADMIN_ID = 12345678  # آیدی عددی خودت را اینجا بزن
+ADMIN_ID = 863961919  # آیدی عددی خودت را اینجا بزن
 CARD_NUMBER = "5057851560122222"
 CARD_NAME = "سجاد رستگاران"
 
