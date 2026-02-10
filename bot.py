@@ -265,6 +265,54 @@ async def biubiu_start(message: types.Message):
     keyboard.add("بازگشت")
     await message.answer("لطفا نوع اشتراک Biubiu را انتخاب کنید:", reply_markup=keyboard)
 
+# --- تعرفه‌های دقیق Biubiu ---
+@dp.message_handler(lambda message: message.text in ["تک کاربره", "دو کاربره"])
+async def biubiu_plans(message: types.Message, state: FSMContext):
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    
+    if message.text == "تک کاربره":
+        plans = [
+            "1ماهه حجم نامحدود (تک) - 100,000 تومان",
+            "2ماهه حجم نامحدود (تک) - 200,000 تومان",
+            "3ماهه حجم نامحدود (تک) - 300,000 تومان"
+        ]
+    else: # دو کاربره
+        plans = [
+            "1ماهه حجم نامحدود (دو) - 300,000 تومان",
+            "3ماهه حجم نامحدود (دو) - 600,000 تومان",
+            "6ماهه حجم نامحدود (دو) - 1,100,000 تومان",
+            "12ماهه حجم نامحدود (دو) - 1,800,000 تومان"
+        ]
+    
+    for plan in plans:
+        keyboard.add(plan)
+    keyboard.add("بازگشت")
+    
+    await state.update_data(product_type="Biubiu") # ذخیره نوع محصول
+    await message.answer(f"📦 تعرفه‌های {message.text} Biubiu:", reply_markup=keyboard)
+    await BuyState.choosing_plan.set()
+
+# --- اصلاح هندلر پردازش پلن برای داینامیک کردن قیمت فاکتور ---
+@dp.message_handler(state=BuyState.choosing_plan)
+async def process_plan(message: types.Message, state: FSMContext):
+    if message.text == "بازگشت":
+        await state.finish()
+        return await buy_start(message)
+    
+    # استخراج قیمت از متن دکمه (مثلاً 100,000)
+    import re
+    price_search = re.search(r"([\d,]+) تومان", message.text)
+    price = price_search.group(1) if price_search else "نامشخص"
+    
+    await state.update_data(selected_plan=message.text, plan_price=price)
+    
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("نام کاربری تصادفی", "لغو عملیات")
+    keyboard.add("بازگشت")
+    
+    await message.answer("👤 لطفاً یک نام کاربری برای اشتراک وارد کنید.\n(بین ۳ تا ۳۲ کاراکتر، حروف انگلیسی و عدد)", reply_markup=keyboard)
+    await BuyState.entering_username.set()
+
 # --- بخش زیرمجموعه گیری (تکمیل شده) ---
 @dp.message_handler(lambda message: message.text == "زیرمجموعه گیری")
 async def referral_link(message: types.Message):
