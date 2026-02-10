@@ -19,9 +19,13 @@ CARD_NAME = "سجاد رستگاران"
 DATABASE_URL = "postgresql://postgres:lsiRZhVlzjnTlcBiNzdOLoRuSHsFpDCP@maglev.proxy.rlwy.net:15760/railway"
 
 V2RAY_SUBS = [
-    {"name": "5 گیگ", "price": 60000},
-    {"name": "10 گیگ", "price": 100000},
-    {"name": "20 گیگ", "price": 150000}
+    {"name": "5 گیگ نامحدود", "price": 60000},
+    {"name": "10 گیگ نامحدود", "price": 100000},
+    {"name": "20 گیگ نامحدود", "price": 150000},
+    {"name": "30 گیگ نامحدود", "price": 200000},
+    {"name": "50 گیگ نامحدود", "price": 300000},
+    {"name": "100 گیگ نامحدود", "price": 400000},
+    {"name": "200 گیگ نامحدود", "price": 500000},
 ]
 
 # --- توابع مدیریت دیتابیس ---
