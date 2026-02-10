@@ -291,3 +291,65 @@ async def support_section(message: types.Message):
 async def service_status(message: types.Message):
     url = "http://v2inj.galexystore.ir:3001/"
     await message.answer(f"🌐 وضعیت لحظه‌ای سرویس‌ها:\n{url}")
+
+import random
+import string
+
+# دیتابیس فرضی برای کدهای تخفیف (در پروژه واقعی از SQL استفاده کنید)
+# ساختار: {"CODE": PERCENT_INT}
+DISCOUNT_CODES = {"WELCOME10": 10, "ARAD_VIP": 20}
+
+# --- وضعیت ادمین برای ساخت کد ---
+class AdminState(StatesGroup):
+    waiting_for_new_code = State()
+
+# --- دکمه پنل ادمین (فقط برای آیدی ادمین نمایش داده شود) ---
+@dp.message_handler(commands=['admin'])
+async def admin_panel(message: types.Message):
+    if message.from_user.id == ADMIN_ID:
+        kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        kb.add("➕ ساخت کد تخفیف جدید", "📊 آمار کاربران")
+        kb.add("بازگشت به منوی اصلی")
+        await message.answer("🛠 به پنل مدیریت خوش آمدید:", reply_markup=kb)
+    else:
+        await message.answer("⚠️ شما دسترسی به این بخش را ندارید.")
+
+# --- شروع فرآیند ساخت کد تخفیف ---
+@dp.message_handler(lambda message: message.text == "➕ ساخت کد تخفیف جدید" and message.from_user.id == ADMIN_ID)
+async def start_create_discount(message: types.Message):
+    await message.answer("لطفا کد و درصد را به این صورت وارد کنید:\n\n`OFF50-50`\n(یعنی کد OFF50 با ۵۰ درصد تخفیف)", parse_mode="Markdown")
+    await AdminState.waiting_for_new_code.set()
+
+@dp.message_handler(state=AdminState.waiting_for_new_code)
+async def save_discount_code(message: types.Message, state: FSMContext):
+    try:
+        code_data, percent = message.text.split('-')
+        DISCOUNT_CODES[code_data.upper()] = int(percent)
+        await message.answer(f"✅ کد تخفیف `{code_data.upper()}` با موفقیت برای {percent}% تخفیف فعال شد.")
+    except:
+        await message.answer("❌ فرمت اشتباه است. دوباره تلاش کنید یا 'انصراف' بزنید.")
+    await state.finish()
+
+# --- اعمال کد تخفیف توسط کاربر در فاکتور ---
+@dp.callback_query_handler(lambda c: c.data.startswith('apply_discount_'))
+async def ask_for_discount_code(callback_query: types.CallbackQuery, state: FSMContext):
+    inv_id = callback_query.data.split('_')[2]
+    await bot.send_message(callback_query.from_user.id, "🎫 لطفا کد تخفیف خود را وارد کنید:")
+    await BuyState.waiting_for_discount.set() # باید در States قبلی اضافه شود
+    await state.update_data(current_inv_for_discount=inv_id)
+
+@dp.message_handler(state=BuyState.waiting_for_discount)
+async def process_discount(message: types.Message, state: FSMContext):
+    user_code = message.text.upper()
+    data = await state.get_data()
+    inv_id = data.get('current_inv_for_discount')
+    
+    if user_code in DISCOUNT_CODES:
+        percent = DISCOUNT_CODES[user_code]
+        # در اینجا باید قیمت فاکتور را در دیتابیس آپدیت کنید
+        # مثلا: new_price = old_price * (100 - percent) / 100
+        await message.answer(f"🎉 تبریک! کد تخفیف اعمال شد.\n{percent}% از مبلغ فاکتور شما کسر شد.")
+        # نمایش مجدد فاکتور با قیمت جدید
+    else:
+        await message.answer("❌ کد تخفیف معتبر نیست یا منقضی شده است.")
+    await state.finish()
