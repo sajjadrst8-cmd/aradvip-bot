@@ -68,40 +68,33 @@ def get_marzban_token():
             
     return None
 
-def add_marzban_user(user_data):
-    token = get_marzban_token()
-    if not token:
-        return None
-
-    url = f"{MARZBAN_URL}/api/user"
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json'
+def create_marzban_user(user_id, plan_name):
+    # تنظیمات مربوط به دیتای کاربر بر اساس پلن
+    user_data = {
+        "username": f"user_{user_id}_{plan_name}",
+        "data_limit": 10 * 1024 * 1024 * 1024, # مثال: ۱۰ گیگابایت
+        "expire": 0 # بدون تاریخ انقضا یا طبق فرمول شما
     }
+    
+    token = get_marzban_token()
+    url = f"{MARZBAN_URL}/api/user"
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
 
     payload = {
         "username": user_data['username'],
         "proxies": {
-            "vless": {
-                "flow": "xtls-rprx-vision"
-            },
+            "vless": {"flow": "xtls-rprx-vision"}, # طبق خواسته شما
             "vmess": {}
         },
-        "expire": user_data.get('expire'),
-        "data_limit": user_data.get('data_limit'),
-        "data_limit_reset_strategy": "no_reset"
+        "data_limit": user_data['data_limit']
     }
 
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=20)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            print(f"Error Creating User: {response.status_code} - {response.text}")
-            return None
-    except Exception as e:
-        print(f"Exception in add_user: {e}")
-        return None
+    response = requests.post(url, json=payload, headers=headers)
+    if response.status_code == 200:
+        res_data = response.json()
+        return res_data['subscription_url'], res_data['username']
+    return None, None
+
 
 
 # --- هندلرهای تلگرام ---
