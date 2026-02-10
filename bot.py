@@ -1,42 +1,62 @@
 import asyncio
 import logging
-import sqlite3
 import random
 import string
+import os
 from datetime import datetime
+from dotenv import load_dotenv
+from motor.motor_asyncio import AsyncIOMotorClient
 
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.utils.deep_linking import create_start_link
 
-# ================= تنظیمات =================
-API_TOKEN = '8584319269:AAGFrJ0jXy5SHktP-VQE2jjUBVnW65fLcdw' 
-ADMIN_ID = 863961919  # آیدی عددی خودتان
-CARD_NUMBER = "5057851560122222"
-CARD_NAME = "سجاد رستگاران"
-REF_BONUS = 5000  # هدیه زیرمجموعه‌گیری به تومان
+# بارگذاری متغیرهای محیطی از فایل .env
+load_dotenv()
+
+# ================= تنظیمات (دریافت از متغیرهای سیستم) =================
+API_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
+MONGO_URL = os.getenv("MONGO_URL")
+REF_BONUS = 5000 
+CARD_NUMBER = os.getenv("CARD_NUMBER", "5057851560122222")
+CARD_NAME = os.getenv("CARD_NAME", "سجاد رستگاران")
 
 logging.basicConfig(level=logging.INFO)
+
+# ================= اتصال به دیتابیس ابری =================
+client = AsyncIOMotorClient(MONGO_URL)
+db = client["v2ray_store"]
+users_col = db["users"]
+invoices_col = db["invoices"]
+
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
-
-# ================= دیتابیس =================
-conn = sqlite3.connect('v2ray_pro.db', check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                  (user_id INTEGER PRIMARY KEY, balance INTEGER DEFAULT 0, 
-                   test_usage INTEGER DEFAULT 0, joined_date TEXT, inviter_id INTEGER)''')
-cursor.execute('''CREATE TABLE IF NOT EXISTS invoices 
-                  (id TEXT PRIMARY KEY, user_id INTEGER, amount INTEGER, 
-                   status TEXT, date TEXT, plan_name TEXT, alias TEXT)''')
-conn.commit()
 
 class BotStates(StatesGroup):
     entering_username = State()
     sending_receipt = State()
+
+# ================= توابع کمکی دیتابیس =================
+async def get_user(user_id):
+    return await users_col.find_one({"user_id": user_id})
+
+async def add_user(user_id, full_name, inviter=None):
+    user = await get_user(user_id)
+    if not user:
+        new_user = {
+            "user_id": user_id,
+            "full_name": full_name,
+            "balance": 0,
+            "test_usage": 0,
+            "joined_date": datetime.now().strftime("%Y/%m/%d"),
+            "inviter_id": inviter
+        }
+        await users_col.insert_one(new_user)
+        return True
+    return False
 
 # ================= منوها =================
 def get_main_menu():
@@ -52,81 +72,72 @@ def get_main_menu():
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
     uid = message.from_user.id
-    # بررسی زیرمجموعه
     args = message.text.split()
-    inviter = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
+    inviter_id = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
+    
+    is_new = await add_user(uid, message.from_user.full_name, inviter_id)
+    
+    if is_new and inviter_id:
+        await users_col.update_one({"user_id": inviter_id}, {"$inc": {"balance": REF_BONUS}})
+        try:
+            await bot.send_message(inviter_id, f"🎉 تبریک! یک زیرمجموعه جدید با لینک شما عضو شد.\n💰 هدیه: {REF_BONUS:,} تومان")
+        except: pass
 
-    cursor.execute("SELECT * FROM users WHERE user_id=?", (uid,))
-    if not cursor.fetchone():
-        cursor.execute("INSERT INTO users (user_id, balance, test_usage, joined_date, inviter_id) VALUES (?, 0, 0, ?, ?)", 
-                       (uid, datetime.now().strftime("%Y/%m/%d"), inviter))
-        conn.commit()
-        if inviter:
-            cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (REF_BONUS, inviter))
-            conn.commit()
-            try:
-                await bot.send_message(inviter, f"🎉 یک نفر با لینک شما عضو شد! مبلغ {REF_BONUS:,} تومان به کیف پول شما اضافه شد.")
-            except: pass
-            
     await message.answer(f"سلام {message.from_user.first_name} خوش آمدید!", reply_markup=get_main_menu())
-
-@dp.message(F.text == "زیرمجموعه گیری")
-async def referral_menu(message: types.Message):
-    uid = message.from_user.id
-    bot_info = await bot.get_me()
-    ref_link = f"https://t.me/{bot_info.username}?start={uid}"
-    
-    cursor.execute("SELECT COUNT(*) FROM users WHERE inviter_id = ?", (uid,))
-    count = cursor.fetchone()[0]
-    
-    text = (f"👥 <b>سیستم زیرمجموعه‌گیری</b>\n\n"
-            f"با دعوت دوستان خود، مبلغ {REF_BONUS:,} تومان اعتبار هدیه بگیرید.\n\n"
-            f"📈 تعداد افراد دعوت شده: {count} نفر\n"
-            f"🔗 لینک اختصاصی شما:\n<code>{ref_link}</code>")
-    await message.answer(text, parse_mode="HTML")
 
 @dp.message(F.text == "حساب کاربری")
 async def account_info(message: types.Message):
-    uid = message.from_user.id
-    cursor.execute("SELECT balance, joined_date FROM users WHERE user_id=?", (uid,))
-    user = cursor.fetchone()
+    user = await get_user(message.from_user.id)
+    cursor = invoices_col.find({"user_id": message.from_user.id}).sort("date", -1).limit(3)
+    purchases = await cursor.to_list(length=3)
     
-    cursor.execute("SELECT plan_name, status FROM invoices WHERE user_id=? ORDER BY date DESC LIMIT 3", (uid,))
-    purchases = cursor.fetchall()
-    history = "\n".join([f"🔹 {p[0]} | {p[1]}" for p in purchases]) if purchases else "سابقه‌ای ندارد."
+    history = "\n".join([f"🔹 {p['plan_name']} | {p['status']}" for p in purchases]) if purchases else "سابقه‌ای ثبت نشده."
 
-    text = (f"👤 <b>اطلاعات حساب:</b>\n\n"
-            f"💰 موجودی: {user[0]:,} تومان\n"
-            f"📅 تاریخ عضویت: {user[1]}\n\n"
-            f"📦 آخرین خریدها:\n{history}")
+    text = (f"👤 <b>پنل کاربری</b>\n\n"
+            f"💰 موجودی کیف پول: {user['balance']:,} تومان\n"
+            f"📅 عضویت: {user['joined_date']}\n\n"
+            f"📦 آخرین فعالیت‌ها:\n{history}")
+    await message.answer(text, parse_mode="HTML")
+
+@dp.message(F.text == "زیرمجموعه گیری")
+async def referral_info(message: types.Message):
+    bot_user = await bot.get_me()
+    ref_link = f"https://t.me/{bot_user.username}?start={message.from_user.id}"
+    count = await users_col.count_documents({"inviter_id": message.from_user.id})
+    
+    text = (f"🤝 <b>برنامه دعوت دوستان</b>\n\n"
+            f"با لینک زیر دوستان خود را دعوت کنید و با هر عضویت {REF_BONUS:,} تومان اعتبار بگیرید.\n\n"
+            f"👥 زیرمجموعه‌های شما: {count} نفر\n"
+            f"🔗 لینک شما:\n<code>{ref_link}</code>")
     await message.answer(text, parse_mode="HTML")
 
 @dp.message(F.text == "خرید اشتراک جدید")
-async def buy_menu(message: types.Message):
-    kb = [
-        [KeyboardButton(text="V2ray 10GB (100,000 تومان)")],
-        [KeyboardButton(text="V2ray 20GB (180,000 تومان)")],
-        [KeyboardButton(text="بازگشت")]
-    ]
-    markup = ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
-    await message.answer("یکی از پلن‌ها را انتخاب کنید:", reply_markup=markup)
+async def buy_start(message: types.Message):
+    kb = [[KeyboardButton(text="V2ray 20GB (150,000 تومان)")], [KeyboardButton(text="بازگشت")]]
+    await message.answer("لطفا پلن را انتخاب کنید:", reply_markup=ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True))
 
 @dp.message(F.text.contains("تومان"))
-async def ask_username(message: types.Message, state: FSMContext):
-    # استخراج قیمت از متن
+async def process_plan(message: types.Message, state: FSMContext):
     price = int(''.join(filter(str.isdigit, message.text.replace(',', ''))))
     await state.update_data(plan=message.text, price=price)
-    await message.answer("👤 یک نام کاربری (انگلیسی) برای اشتراک خود بفرستید:")
+    await message.answer("👤 نام کاربری انگلیسی دلخواه خود را بفرستید:")
     await state.set_state(BotStates.entering_username)
 
 @dp.message(BotStates.entering_username)
-async def process_user(message: types.Message, state: FSMContext):
+async def save_invoice(message: types.Message, state: FSMContext):
     data = await state.get_data()
     inv_id = "".join(random.choices(string.digits, k=6))
-    cursor.execute("INSERT INTO invoices VALUES (?, ?, ?, ?, ?, ?, ?)",
-                   (inv_id, message.from_user.id, data['price'], "⏳ در انتظار پرداخت", 
-                    datetime.now().strftime("%Y/%m/%d"), data['plan'], message.text))
-    conn.commit()
+    
+    invoice = {
+        "_id": inv_id,
+        "user_id": message.from_user.id,
+        "plan_name": data['plan'],
+        "amount": data['price'],
+        "status": "⏳ در انتظار پرداخت",
+        "alias": message.text,
+        "date": datetime.now()
+    }
+    await invoices_col.insert_one(invoice)
     
     builder = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 پرداخت و ارسال رسید", callback_data=f"pay_{inv_id}")]
@@ -138,7 +149,7 @@ async def process_user(message: types.Message, state: FSMContext):
 async def pay_step(callback: types.CallbackQuery, state: FSMContext):
     inv_id = callback.data.split('_')[1]
     await state.update_data(curr_inv=inv_id)
-    await callback.message.answer(f"💳 کارت: `{CARD_NUMBER}`\n👤 بنام: {CARD_NAME}\n\n✅ پس از واریز، عکس رسید را بفرستید.")
+    await callback.message.answer(f"💳 شماره کارت: `{CARD_NUMBER}`\n👤 بنام: {CARD_NAME}\n\n✅ پس از واریز، عکس رسید را بفرستید.")
     await state.set_state(BotStates.sending_receipt)
 
 @dp.message(BotStates.sending_receipt, F.photo)
@@ -157,17 +168,16 @@ async def handle_receipt(message: types.Message, state: FSMContext):
 @dp.callback_query(F.data.startswith("ok_") | F.data.startswith("no_"))
 async def admin_decision(callback: types.CallbackQuery):
     action, inv_id = callback.data.split('_')
-    cursor.execute("SELECT user_id, plan_name FROM invoices WHERE id=?", (inv_id,))
-    res = cursor.fetchone()
-    if not res: return
+    inv = await invoices_col.find_one({"_id": inv_id})
+    if not inv: return
     
     if action == "ok":
-        cursor.execute("UPDATE invoices SET status = '✅ تایید شده' WHERE id = ?", (inv_id,))
-        await bot.send_message(res[0], f"✅ پرداخت شما تایید شد!\n📦 سرویس {res[1]} برای شما فعال شد.")
+        await invoices_col.update_one({"_id": inv_id}, {"$set": {"status": "✅ تایید شده"}})
+        await bot.send_message(inv['user_id'], f"✅ پرداخت شما تایید شد!\n📦 سرویس {inv['plan_name']} برای شما فعال شد.")
     else:
-        cursor.execute("UPDATE invoices SET status = '❌ رد شده' WHERE id = ?", (inv_id,))
-        await bot.send_message(res[0], "❌ رسید شما توسط مدیریت رد شد.")
-    conn.commit()
+        await invoices_col.update_one({"_id": inv_id}, {"$set": {"status": "❌ رد شده"}})
+        await bot.send_message(inv['user_id'], "❌ رسید شما توسط مدیریت رد شد.")
+    
     await callback.message.edit_reply_markup(reply_markup=None)
 
 @dp.message(F.text == "بازگشت")
@@ -181,4 +191,4 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logging.info("Bot stopped")
+        pass
