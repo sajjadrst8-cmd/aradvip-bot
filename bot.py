@@ -27,7 +27,8 @@ CARD_NAME = os.getenv("CARD_NAME", "سجاد رستگاران")
 logging.basicConfig(level=logging.INFO)
 
 # ================= اتصال به دیتابیس ابری =================
-client = AsyncIOMotorClient(MONGO_URL)
+# خط قدیمی را پیدا کن و با این جایگزین کن:
+client = AsyncIOMotorClient(MONGO_URL, tlsAllowInvalidCertificates=True)
 db = client["v2ray_store"]
 users_col = db["users"]
 invoices_col = db["invoices"]
