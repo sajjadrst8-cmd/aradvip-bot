@@ -89,7 +89,7 @@ def create_marzban_user(user_id, plan_name):
     
     payload = {
         "username": username,
-        "proxies": {"vless": {}, "vmess": {}, "trojan": {}},
+        "proxies": {"vless": {}, "vmess": {},  {}},
         "data_limit": bytes_limit,
         "expire": 0
     }
