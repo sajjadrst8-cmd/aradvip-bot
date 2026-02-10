@@ -353,8 +353,3 @@ async def process_discount(message: types.Message, state: FSMContext):
         await message.answer("❌ کد تخفیف معتبر نیست یا منقضی شده است.")
     await state.finish()
 
-async def main():
-    await dp.start_polling(bot)
-
-if __name__ == '__main__':
-    asyncio.run(main())
