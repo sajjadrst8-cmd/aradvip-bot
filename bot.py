@@ -52,7 +52,7 @@ def get_marzban_token():
             'password': MARZBAN_ADMIN_PASS
         }
         # ارسال درخواست برای دریافت توکن (زمان انقضای توکن مرزبان معمولا ۲۴ ساعت است)
-        response = requests.post(url, data=data, timeout=10)
+        response = requests.post(url, data=data, timeout=30)
         if response.status_code == 200:
             return response.json().get('access_token')
         else:
