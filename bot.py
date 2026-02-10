@@ -2,6 +2,7 @@ import psycopg2
 import requests
 import re
 import os
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
@@ -65,38 +66,37 @@ def get_marzban_token():
 def create_marzban_user(user_id, plan_name):
     token = get_marzban_token()
     if not token:
+        print("Failed to get Marzban Token")
         return None, None
 
-    # استخراج عدد گیگابایت از اسم پلن (مثلا "5 گیگ" -> 5)
-    gb = int(re.findall(r'\d+', plan_name)[0]) if re.findall(r'\d+', plan_name) else 10
-    bytes_limit = gb * 1024 * 1024 * 1024 # تبدیل به بایت
+    # استخراج حجم از اسم پلن
+    try:
+        gb = int(re.findall(r'\d+', plan_name)[0])
+    except:
+        gb = 10 
     
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json'
-    }
+    bytes_limit = gb * 1024 * 1024 * 1024
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
     
-    # ساخت یوزرنیم منحصر به فرد
-    username = f"tg_{user_id}_{int(requests.utils.time.time())}"
+    # اصلاح بخش زمان که ارور می‌داد
+    import time 
+    username = f"tg_{user_id}_{int(time.time())}"
     
-    # تنظیمات ساخت کاربر (فعال کردن تمام پروتکل‌های موجود در پنل شما)
     payload = {
         "username": username,
-        "proxies": {"vless": {}, "vmess": {}, "trojan": {}, "shadowsocks": {}},
+        "proxies": {"vless": {}, "vmess": {}, "trojan": {}},
         "data_limit": bytes_limit,
-        "expire": 0, # بدون محدودیت زمانی (یا می‌توانید بر اساس پلن تغییر دهید)
-        "data_limit_reset_strategy": "no_reset"
+        "expire": 0
     }
     
     try:
         res = requests.post(f"{MARZBAN_URL}/api/user", json=payload, headers=headers, timeout=15)
         if res.status_code == 200:
-            data = res.json()
-            return data.get('subscription_url'), username
+            return res.json().get('subscription_url'), username
         else:
-            print(f"Create User Error: {res.text}")
+            print(f"Marzban Error: {res.text}")
     except Exception as e:
-        print(f"API Request Error: {e}")
+        print(f"Request Error: {e}")
     
     return None, None
 
