@@ -68,42 +68,40 @@ def get_marzban_token():
             
     return None
 
-def create_marzban_user(user_id, plan_name):
+def add_marzban_user(user_data):
     token = get_marzban_token()
     if not token:
-        print("Failed to get Marzban Token")
-        return None, None
+        return None
 
-    # استخراج حجم از اسم پلن
-    try:
-        gb = int(re.findall(r'\d+', plan_name)[0])
-    except:
-        gb = 10 
-    
-    bytes_limit = gb * 1024 * 1024 * 1024
-    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
-    
-    # اصلاح بخش زمان که ارور می‌داد
-    import time 
-    username = f"tg_{user_id}_{int(time.time())}"
-    
-    payload = {
-        "username": username,
-        "proxies": {"vless": {}, "vmess": {},  {}},
-        "data_limit": bytes_limit,
-        "expire": 0
+    url = f"{MARZBAN_URL}/api/user"
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
     }
-    
+
+    payload = {
+        "username": user_data['username'],
+        "proxies": {
+            "vless": {
+                "flow": "xtls-rprx-vision"
+            },
+            "vmess": {}
+        },
+        "expire": user_data.get('expire'),
+        "data_limit": user_data.get('data_limit'),
+        "data_limit_reset_strategy": "no_reset"
+    }
+
     try:
-        res = requests.post(f"{MARZBAN_URL}/api/user", json=payload, headers=headers, timeout=15)
-        if res.status_code == 200:
-            return res.json().get('subscription_url'), username
+        response = requests.post(url, json=payload, headers=headers, timeout=20)
+        if response.status_code == 200:
+            return response.json()
         else:
-            print(f"Marzban Error: {res.text}")
+            print(f"Error Creating User: {response.status_code} - {response.text}")
+            return None
     except Exception as e:
-        print(f"Request Error: {e}")
-    
-    return None, None
+        print(f"Exception in add_user: {e}")
+        return None
 
 
 # --- هندلرهای تلگرام ---
