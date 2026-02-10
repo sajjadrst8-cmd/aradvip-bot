@@ -10,8 +10,8 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from persiantools.jdatetime import JalaliDateTime
 
 # تنظیمات ربات
-API_TOKEN = 'YOUR_BOT_TOKEN'
-ADMIN_ID = 12345678  # آیدی عددی خودت را اینجا بزن
+API_TOKEN = '8584319269:AAHT2fLxyC303MCl-jndJVSO7F27YO0hIAA'
+ADMIN_ID = 863961919  # آیدی عددی خودت را اینجا بزن
 CARD_NUMBER = "5057851560122222"
 CARD_NAME = "سجاد رستگاران"
 
