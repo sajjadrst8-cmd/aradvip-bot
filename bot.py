@@ -83,17 +83,19 @@ async def buy_start(message: types.Message):
     # اینجا وضعیت را روی حالتی می‌گذاریم که منتظر انتخاب نوع سرویس باشد
     await message.answer("لطفا نوع سرویس مورد نظر را انتخاب کنید:", reply_markup=keyboard)
 
-# --- اصلاح هندلر Biubiu برای باز کردن تعرفه‌ها ---
-@dp.message_handler(lambda message: "Biubiu" in message.text)
-async def biubiu_menu(message: types.Message):
+# --- منوی اصلی انتخاب Biubiu ---
+@dp.message_handler(lambda message: "Biubiu" in message.text, state="*")
+async def biubiu_menu(message: types.Message, state: FSMContext):
+    await state.finish() # پاک کردن هر وضعیتی که قبلا توش بوده
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add("تک کاربره", "دو کاربره") # متن‌ها ساده و دقیق
+    keyboard.add("تک کاربره", "دو کاربره")
     keyboard.add("بازگشت")
     await message.answer("لطفا نوع اشتراک Biubiu را انتخاب کنید:", reply_markup=keyboard)
 
-# --- هندلر نمایش تعرفه‌ها (اصلاح شده و دقیق) ---
-@dp.message_handler(lambda message: message.text in ["تک کاربره", "دو کاربره"])
+# --- نمایش تعرفه‌ها (اصلاح شده با حذف محدودیت State) ---
+@dp.message_handler(lambda message: message.text in ["تک کاربره", "دو کاربره"], state="*")
 async def biubiu_plans_display(message: types.Message, state: FSMContext):
+    await state.finish() # اطمینان از اینکه ربات گیج نمی‌شود
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
     
     if "تک" in message.text:
@@ -102,7 +104,7 @@ async def biubiu_plans_display(message: types.Message, state: FSMContext):
             "2ماهه حجم نامحدود (تک) - 200,000 تومان",
             "3ماهه حجم نامحدود (تک) - 300,000 تومان"
         ]
-    else: # دو کاربره
+    else:
         plans = [
             "1ماهه حجم نامحدود (دو) - 300,000 تومان",
             "3ماهه حجم نامحدود (دو) - 600,000 تومان",
@@ -115,7 +117,7 @@ async def biubiu_plans_display(message: types.Message, state: FSMContext):
     keyboard.add("بازگشت")
     
     await message.answer(f"📋 لیست تعرفه‌های {message.text}:", reply_markup=keyboard)
-    # خیلی مهم: اینجا حالت را به choosing_plan تغییر می‌دهیم تا مرحله بعد (نام کاربری) اجرا شود
+    # حالا که تعرفه رو دید، وضعیت رو میبریم روی حالتی که پلن رو انتخاب کنه
     await BuyState.choosing_plan.set()
 # --- تعرفه‌های V2ray ---
 @dp.message_handler(lambda message: "V2ray" in message.text)
