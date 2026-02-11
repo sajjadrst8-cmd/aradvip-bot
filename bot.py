@@ -248,15 +248,21 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     await state.finish()
 
 # --- پاسخ ادمین ---
-@dp.callback_query_handler(lambda c: c.data.startswith('adm_'))
-async def admin_action(callback: types.CallbackQuery):
-    action, _, user_id = callback.data.split('_')[0], callback.data.split('_')[1], callback.data.split('_')[2]
-    if action == "confirm":
-        await bot.send_message(user_id, "✅ رسید شما تایید شد! اشتراک شما به زودی فعال می‌شود.")
-        await callback.answer("تایید شد")
+@dp.callback_query_handler(lambda c: c.data.startswith(('approve_', 'decline_')))
+async def admin_decision(callback: types.CallbackQuery):
+    data_parts = callback.data.split('_')
+    action = data_parts[0] # approve یا decline
+    user_id = data_parts[1]
+    inv_id = data_parts[2]
+
+    if action == "approve":
+        await bot.send_message(user_id, f"✅ رسید فاکتور {inv_id} تایید شد!\nاشتراک شما فعال گردید.")
+        await callback.message.edit_caption(caption=f"✅ این رسید توسط ادمین تایید شد.\nکاربر: {user_id}")
     else:
-        await bot.send_message(user_id, "❌ رسید شما رد شد. لطفا با پشتیبانی در ارتباط باشید.")
-        await callback.answer("رد شد")
+        await bot.send_message(user_id, "❌ رسید شما توسط ادمین رد شد.\nاحتمالا واریزی تایید نشده است. با پشتیبانی در ارتباط باشید.")
+        await callback.message.edit_caption(caption=f"❌ این رسید رد شد.\nکاربر: {user_id}")
+    
+    await callback.answer()
 
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
