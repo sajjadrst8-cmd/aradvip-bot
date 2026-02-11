@@ -224,7 +224,19 @@ async def card_pay_info(callback: types.CallbackQuery, state: FSMContext):
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
 async def handle_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    await message.answer("✅ رسید دریافت شد و برای ادمین ارسال گردید. منتظر تایید بمانید.")
+    inv_id = data.get('current_inv')
+    
+    await message.answer("✅ رسید دریافت شد و برای ادمین ارسال گردید.\nمنتظر تایید بمانید.", reply_markup=main_menu())
+    
+    admin_kb = types.InlineKeyboardMarkup()
+    # دقت کن: کلمه confirm و reject رو اول آوردم
+    admin_kb.add(types.InlineKeyboardButton("✅ تایید", callback_data=f"approve_{message.from_user.id}_{inv_id}"))
+    admin_kb.add(types.InlineKeyboardButton("❌ رد", callback_data=f"decline_{message.from_user.id}_{inv_id}"))
+    
+    await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, 
+                         caption=f"🔔 رسید جدید\n👤 کاربر: {message.from_user.id}\n🧾 فاکتور: {inv_id}", 
+                         reply_markup=admin_kb)
+    await state.finish()
     
     admin_kb = types.InlineKeyboardMarkup()
     admin_kb.add(types.InlineKeyboardButton("✅ تایید", callback_data=f"adm_confirm_{message.from_user.id}"))
