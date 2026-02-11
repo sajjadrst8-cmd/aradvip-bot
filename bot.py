@@ -50,9 +50,10 @@ class WalletState(StatesGroup):
 def main_menu():
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     keyboard.add("خرید اشتراک جدید", "دریافت اشتراک تست")
-    keyboard.add("اشتراک های من / فاکتور های من")
+    keyboard.add("اشتراک های من , فاکتور های من")
     keyboard.add("حساب کاربری")
-    keyboard.add("پشتیبانی / آموزش اتصال", "وضعیت سرویس ها")
+    keyboard.add("پشتیبانی , آموزش اتصال")
+    keyboard.add(""وضعیت سرویس ها")
     return keyboard
 
 # --- هندلرهای شروع ---
