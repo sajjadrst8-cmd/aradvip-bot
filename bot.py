@@ -169,11 +169,10 @@ async def cancel_everything(message: types.Message, state: FSMContext):
     await message.answer("👤 یک نام کاربری (انگلیسی) برای اکانت وارد کنید:", reply_markup=keyboard)
     await BuyState.entering_username.set()
 
-@dp.message_handler(state=BuyState.entering_username)
-async def process_username(message: types.Message, state: FSMContext):
-    if message.text == "لغو عملیات":
-        await state.finish()
-        return await send_welcome(message, state)
+@dp.message_handler(lambda message: message.text == "لغو عملیات", state="*")
+async def cancel_everything(message: types.Message, state: FSMContext):
+    await state.finish() # این خط وضعیت رو کاملاً ریست می‌کنه
+    await message.answer("❌ عملیات با موفقیت لغو شد.\nبه منوی اصلی برگشتیم.", reply_markup=main_menu())
     
     uname = message.text
     if uname == "نام کاربری تصادفی":
