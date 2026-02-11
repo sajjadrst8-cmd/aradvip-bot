@@ -95,7 +95,7 @@ async def biubiu_menu(message: types.Message, state: FSMContext):
 # --- نمایش تعرفه‌ها (اصلاح شده با حذف محدودیت State) ---
 @dp.message_handler(lambda message: message.text in ["تک کاربره", "دو کاربره"], state="*")
 async def biubiu_plans_display(message: types.Message, state: FSMContext):
-    await state.finish() # اطمینان از اینکه ربات گیج نمی‌شود
+    # ما نباید اینجا state.finish کنیم، فقط کافیست وضعیت را به مرحله انتخاب پلن ببریم
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
     
     if "تک" in message.text:
@@ -117,7 +117,7 @@ async def biubiu_plans_display(message: types.Message, state: FSMContext):
     keyboard.add("بازگشت")
     
     await message.answer(f"📋 لیست تعرفه‌های {message.text}:", reply_markup=keyboard)
-    # حالا که تعرفه رو دید، وضعیت رو میبریم روی حالتی که پلن رو انتخاب کنه
+    # این خط حیاتی است: ربات را آماده نگه می‌دارد تا بفهمد کاربر کدام قیمت را انتخاب می‌کند
     await BuyState.choosing_plan.set()
 # --- تعرفه‌های V2ray ---
 @dp.message_handler(lambda message: "V2ray" in message.text)
