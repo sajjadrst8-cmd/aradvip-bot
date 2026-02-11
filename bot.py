@@ -135,7 +135,21 @@ async def process_plan_choice(message: types.Message, state: FSMContext):
     if message.text == "بازگشت":
         await state.finish()
         return await buy_start(message)
-
+    
+    # اگر کاربر روی یکی از قیمت‌ها زد
+    if "تومان" in message.text:
+        import re
+        price_match = re.search(r"([\d,]+) تومان", message.text)
+        price = price_match.group(1) if price_match else "100,000"
+        
+        await state.update_data(selected_plan=message.text, plan_price=price)
+        
+        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        keyboard.add("نام کاربری تصادفی", "لغو عملیات")
+        await message.answer("👤 عالی! حالا یک نام کاربری (انگلیسی) برای اکانت خود وارد کنید:", reply_markup=keyboard)
+        await BuyState.entering_username.set() # رفتن به مرحله بعد
+    else:
+        await message.answer("لطفاً یکی از پلن‌های بالا را انتخاب کنید یا بازگشت را بزنید.")
     # این هندلر باید بالاتر از بقیه هندلرها (مثلاً قبل از هندلر دریافت عکس) باشد
 @dp.message_handler(lambda message: message.text == "لغو عملیات", state="*")
 async def cancel_everything(message: types.Message, state: FSMContext):
