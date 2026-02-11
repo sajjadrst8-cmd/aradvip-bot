@@ -253,7 +253,7 @@ async def admin_decision(callback: types.CallbackQuery):
     inv_id = data_parts[2]
 
     if action == "approve":
-        await bot.send_message(user_id, f"✅ رسید فاکتور {inv_id} تایید شد!\nاشتراک شما فعال گردید.")
+        await bot.send_message(user_id, f"✅ رسید فاکتور {inv_id} تایید شد!\n,اطلاعات شما در بخش اشتراک من قابل مشاهده است اشتراک شما فعال گردید.")
         await callback.message.edit_caption(caption=f"✅ این رسید توسط ادمین تایید شد.\nکاربر: {user_id}")
     else:
         await bot.send_message(user_id, "❌ رسید شما توسط ادمین رد شد.\nاحتمالا واریزی تایید نشده است. با پشتیبانی در ارتباط باشید.")
