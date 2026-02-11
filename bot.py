@@ -74,17 +74,26 @@ async def buy_start(message: types.Message):
     keyboard.add("بازگشت")
     await message.answer("لطفا نوع سرویس مورد نظر را انتخاب کنید:", reply_markup=keyboard)
 
-# --- منوی Biubiu VPN ---
+# --- اصلاح بخش انتخاب نوع سرویس ---
+@dp.message_handler(lambda message: message.text == "خرید اشتراک جدید")
+async def buy_start(message: types.Message):
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add("V2ray (تانل نیم بها)", "Biubiu VPN")
+    keyboard.add("بازگشت")
+    # اینجا وضعیت را روی حالتی می‌گذاریم که منتظر انتخاب نوع سرویس باشد
+    await message.answer("لطفا نوع سرویس مورد نظر را انتخاب کنید:", reply_markup=keyboard)
+
+# --- اصلاح هندلر Biubiu برای باز کردن تعرفه‌ها ---
 @dp.message_handler(lambda message: "Biubiu" in message.text)
 async def biubiu_menu(message: types.Message):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add("تک کاربره (Biubiu)", "دو کاربره (Biubiu)")
+    keyboard.add("تک کاربره", "دو کاربره") # متن‌ها ساده و دقیق
     keyboard.add("بازگشت")
     await message.answer("لطفا نوع اشتراک Biubiu را انتخاب کنید:", reply_markup=keyboard)
 
-# --- تعرفه‌های Biubiu (اصلاح شده) ---
-@dp.message_handler(lambda message: "تک کاربره" in message.text or "دو کاربره" in message.text)
-async def biubiu_plans(message: types.Message, state: FSMContext):
+# --- هندلر نمایش تعرفه‌ها (اصلاح شده و دقیق) ---
+@dp.message_handler(lambda message: message.text in ["تک کاربره", "دو کاربره"])
+async def biubiu_plans_display(message: types.Message, state: FSMContext):
     keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
     
     if "تک" in message.text:
@@ -105,9 +114,9 @@ async def biubiu_plans(message: types.Message, state: FSMContext):
         keyboard.add(p)
     keyboard.add("بازگشت")
     
-    await message.answer(f"📦 تعرفه‌های {message.text}:", reply_markup=keyboard)
+    await message.answer(f"📋 لیست تعرفه‌های {message.text}:", reply_markup=keyboard)
+    # خیلی مهم: اینجا حالت را به choosing_plan تغییر می‌دهیم تا مرحله بعد (نام کاربری) اجرا شود
     await BuyState.choosing_plan.set()
-
 # --- تعرفه‌های V2ray ---
 @dp.message_handler(lambda message: "V2ray" in message.text)
 async def v2ray_plans(message: types.Message):
