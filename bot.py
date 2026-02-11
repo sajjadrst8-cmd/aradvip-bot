@@ -82,17 +82,29 @@ async def biubiu_menu(message: types.Message):
     keyboard.add("بازگشت")
     await message.answer("لطفا نوع اشتراک Biubiu را انتخاب کنید:", reply_markup=keyboard)
 
-# --- تعرفه‌های Biubiu ---
-@dp.message_handler(lambda message: "(Biubiu)" in message.text)
+# --- تعرفه‌های Biubiu (اصلاح شده) ---
+@dp.message_handler(lambda message: "تک کاربره" in message.text or "دو کاربره" in message.text)
 async def biubiu_plans(message: types.Message, state: FSMContext):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    if "تک" in message.text:
-        plans = ["1ماهه نامحدود - 100,000 تومان", "2ماهه نامحدود - 200,000 تومان", "3ماهه نامحدود - 300,000 تومان"]
-    else:
-        plans = ["1ماهه نامحدود - 300,000 تومان", "3ماهه نامحدود - 600,000 تومان", "6ماهه نامحدود - 1,100,000 تومان", "12ماهه نامحدود - 1,800,000 تومان"]
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
     
-    for p in plans: keyboard.add(p)
+    if "تک" in message.text:
+        plans = [
+            "1ماهه حجم نامحدود (تک) - 100,000 تومان",
+            "2ماهه حجم نامحدود (تک) - 200,000 تومان",
+            "3ماهه حجم نامحدود (تک) - 300,000 تومان"
+        ]
+    else: # دو کاربره
+        plans = [
+            "1ماهه حجم نامحدود (دو) - 300,000 تومان",
+            "3ماهه حجم نامحدود (دو) - 600,000 تومان",
+            "6ماهه حجم نامحدود (دو) - 1,100,000 تومان",
+            "12ماهه حجم نامحدود (دو) - 1,800,000 تومان"
+        ]
+    
+    for p in plans:
+        keyboard.add(p)
     keyboard.add("بازگشت")
+    
     await message.answer(f"📦 تعرفه‌های {message.text}:", reply_markup=keyboard)
     await BuyState.choosing_plan.set()
 
