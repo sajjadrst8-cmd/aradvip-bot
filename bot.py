@@ -150,53 +150,50 @@ async def process_plan_choice(message: types.Message, state: FSMContext):
         await BuyState.entering_username.set() # رفتن به مرحله بعد
     else:
         await message.answer("لطفاً یکی از پلن‌های بالا را انتخاب کنید یا بازگشت را بزنید.")
-    # این هندلر باید بالاتر از بقیه هندلرها (مثلاً قبل از هندلر دریافت عکس) باشد
+ # --- ۱. هندلر لغو عملیات (باید در بالاترین قسمت هندلرها باشد) ---
 @dp.message_handler(lambda message: message.text == "لغو عملیات", state="*")
 async def cancel_everything(message: types.Message, state: FSMContext):
-    current_state = await state.get_state()
-    if current_state is None:
-        return
-
-    await state.finish() # خروج از حالت انتظار برای عکس یا نام کاربری
+    await state.finish() # پایان دادن به وضعیت فعلی
     await message.answer("❌ عملیات با موفقیت لغو شد.", reply_markup=main_menu())
-    
-    price_match = re.search(r"([\d,]+) تومان", message.text)
-    price = price_match.group(1) if price_match else "100,000"
-    
-    await state.update_data(selected_plan=message.text, plan_price=price)
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add("نام کاربری تصادفی", "لغو عملیات")
-    await message.answer("👤 یک نام کاربری (انگلیسی) برای اکانت وارد کنید:", reply_markup=keyboard)
-    await BuyState.entering_username.set()
 
-@dp.message_handler(lambda message: message.text == "لغو عملیات", state="*")
-async def cancel_everything(message: types.Message, state: FSMContext):
-    await state.finish() # این خط وضعیت رو کاملاً ریست می‌کنه
-    await message.answer("❌ عملیات با موفقیت لغو شد.\nبه منوی اصلی برگشتیم.", reply_markup=main_menu())
+# --- ۲. هندلر پردازش نام کاربری (اصلاح شده) ---
+@dp.message_handler(state=BuyState.entering_username)
+async def process_username(message: types.Message, state: FSMContext):
+    # اگر کاربر به جای تایپ نام، دکمه لغو را زد، هندلر بالایی اجرا می‌شود
+    # اما برای احتیاط اینجا هم چک می‌کنیم
+    if message.text == "لغو عملیات":
+        await state.finish()
+        return await message.answer("❌ عملیات لغو شد.", reply_markup=main_menu())
     
     uname = message.text
     if uname == "نام کاربری تصادفی":
         uname = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
     
+    # اعتبارسنجی ساده نام کاربری (فقط حروف و اعداد انگلیسی)
+    if not all(c.isalnum() or c == '_' for c in uname) and message.text != "نام کاربری تصادفی":
+        return await message.answer("❌ نام کاربری فقط باید شامل حروف انگلیسی، عدد و _ باشد.\nدوباره وارد کنید یا روی نام کاربری تصادفی بزنید:")
+
     data = await state.get_data()
     inv_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
-    
+    price = data.get('plan_price', "100,000")
+    plan = data.get('selected_plan', "نامشخص")
+
     invoice_msg = (
         f"✅ فاکتور پرداخت\n\n"
         f"🧾 شناسه فاکتور: `{inv_id}`\n"
-        f"📦 سرویس: {data.get('selected_plan')}\n"
+        f"📦 سرویس: {plan}\n"
         f"👤 کاربر: `{uname}`\n"
-        f"💰 مبلغ قابل پرداخت: {data.get('plan_price')} تومان\n\n"
+        f"💰 مبلغ قابل پرداخت: {price} تومان\n\n"
         f"👇 جهت تکمیل خرید، روی دکمه پرداخت کلیک کنید."
     )
     
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv_id}_{data.get('plan_price')}"))
-    kb.add(types.InlineKeyboardButton("❌ لغو", callback_data="cancel_inv"))
+    kb.add(types.InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv_id}_{price}"))
+    kb.add(types.InlineKeyboardButton("❌ لغو فاکتور", callback_data="cancel_inv"))
     
     await message.answer(invoice_msg, reply_markup=kb, parse_mode="Markdown")
+    # بعد از صدور فاکتور، وضعیت را پاک می‌کنیم تا ربات دیگر منتظر متن نباشد
     await state.finish()
-
 # --- هندلرهای دکمه‌های بازگشت و لغو ---
 @dp.message_handler(lambda message: message.text == "بازگشت", state="*")
 async def general_back(message: types.Message, state: FSMContext):
