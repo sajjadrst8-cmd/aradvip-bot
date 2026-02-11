@@ -3,15 +3,13 @@ import sqlite3
 import random
 import string
 import re
-from datetime import datetime
 from aiogram import Bot, Dispatcher, types, executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from persiantools.jdatetime import JalaliDateTime
 
-# --- تنظیمات اصلی ---
-API_TOKEN = '8584319269:AAHT2fLxyC303MCl-jndJVSO7F27YO0hIAA'
+# --- تنظیمات ---
+API_TOKEN = 'توکن_خود_را_اینجا_بگذارید'
 ADMIN_ID = 863961919  
 CARD_NUMBER = "5057851560122222"
 CARD_NAME = "سجاد رستگاران"
@@ -21,244 +19,184 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
-# --- دیتابیس ---
-def init_db():
-    conn = sqlite3.connect('arad_bot.db')
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                      (user_id INTEGER PRIMARY KEY, username TEXT, wallet REAL DEFAULT 0, 
-                       referred_by INTEGER, join_date TEXT, status TEXT DEFAULT 'کاربر عادی')''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS invoices 
-                      (id TEXT PRIMARY KEY, user_id INTEGER, amount TEXT, plan_info TEXT, 
-                       status TEXT, date TEXT, type TEXT, custom_username TEXT)''')
-    conn.commit()
-    conn.close()
-
-init_db()
-
-# --- حالات (States) ---
 class BuyState(StatesGroup):
     choosing_plan = State()
     entering_username = State()
     waiting_for_receipt = State()
 
-# --- کیبورد اصلی ---
-def main_menu():
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    keyboard.add("خرید اشتراک جدید", "دریافت اشتراک تست")
-    keyboard.add("اشتراک های من / فاکتور های من")
-    keyboard.add("حساب کاربری")
-    keyboard.add("پشتیبانی / آموزش اتصال", "وضعیت سرویس ها")
+# --- منوی اصلی کاملاً اینلاین ---
+def main_menu_inline():
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        types.InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_menu"),
+        types.InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test")
+    )
+    # جدا کردن اشتراک‌ها و فاکتورها در یک ردیف
+    keyboard.add(
+        types.InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"),
+        types.InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invoices")
+    )
+    keyboard.add(types.InlineKeyboardButton("👤 حساب کاربری", callback_data="account"))
+    # جدا کردن پشتیبانی و آموزش
+    keyboard.add(
+        types.InlineKeyboardButton("📞 پشتیبانی", callback_data="support"),
+        types.InlineKeyboardButton("📚 آموزش اتصال", callback_data="tutorial")
+    )
+    keyboard.add(types.InlineKeyboardButton("📊 وضعیت سرویس‌ها", callback_data="status"))
     return keyboard
 
-# --- هندلر شروع ---
 @dp.message_handler(commands=['start'], state="*")
 async def send_welcome(message: types.Message, state: FSMContext):
     await state.finish()
-    user_id = message.from_id
-    conn = sqlite3.connect('arad_bot.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users WHERE user_id=?", (user_id,))
-    if not cursor.fetchone():
-        now = JalaliDateTime.now().strftime("%Y/%m/%d - %H:%M")
-        cursor.execute("INSERT INTO users (user_id, wallet, join_date) VALUES (?, ?, ?)", (user_id, 0, now))
-        conn.commit()
-    conn.close()
-    await message.answer("🌹 به ربات آراد وی‌آی‌پی خوش آمدید!\nلطفاً یک گزینه را انتخاب کنید:", reply_markup=main_menu())
+    await message.answer("🌹 به ربات آراد وی‌آی‌پی خوش آمدید!\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
+                         reply_markup=main_menu_inline())
 
-# --- بخش خرید اصلی ---
-@dp.message_handler(lambda message: message.text == "خرید اشتراک جدید")
-async def buy_start(message: types.Message):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add("V2ray (تانل نیم بها)", "Biubiu VPN")
-    keyboard.add("بازگشت")
-    await message.answer("لطفا نوع سرویس مورد نظر را انتخاب کنید:", reply_markup=keyboard)
+@dp.callback_query_handler(lambda c: c.data == "back_to_main", state="*")
+async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await callback.message.edit_text("🌹 منوی اصلی:\nلطفاً یک گزینه را انتخاب کنید:", reply_markup=main_menu_inline())
 
-# --- اصلاح بخش انتخاب نوع سرویس ---
-@dp.message_handler(lambda message: message.text == "خرید اشتراک جدید")
-async def buy_start(message: types.Message):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add("V2ray (تانل نیم بها)", "Biubiu VPN")
-    keyboard.add("بازگشت")
-    # اینجا وضعیت را روی حالتی می‌گذاریم که منتظر انتخاب نوع سرویس باشد
-    await message.answer("لطفا نوع سرویس مورد نظر را انتخاب کنید:", reply_markup=keyboard)
-
-# --- منوی اصلی انتخاب Biubiu ---
-@dp.message_handler(lambda message: "Biubiu" in message.text, state="*")
-async def biubiu_menu(message: types.Message, state: FSMContext):
-    await state.finish() # پاک کردن هر وضعیتی که قبلا توش بوده
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add("تک کاربره", "دو کاربره")
-    keyboard.add("بازگشت")
-    await message.answer("لطفا نوع اشتراک Biubiu را انتخاب کنید:", reply_markup=keyboard)
-
-# --- نمایش تعرفه‌ها (اصلاح شده با حذف محدودیت State) ---
-@dp.message_handler(lambda message: message.text in ["تک کاربره", "دو کاربره"], state="*")
-async def biubiu_plans_display(message: types.Message, state: FSMContext):
-    # ما نباید اینجا state.finish کنیم، فقط کافیست وضعیت را به مرحله انتخاب پلن ببریم
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
-    
-    if "تک" in message.text:
-        plans = [
-            "1ماهه حجم نامحدود (تک) - 100,000 تومان",
-            "2ماهه حجم نامحدود (تک) - 200,000 تومان",
-            "3ماهه حجم نامحدود (تک) - 300,000 تومان"
-        ]
-    else:
-        plans = [
-            "1ماهه حجم نامحدود (دو) - 300,000 تومان",
-            "3ماهه حجم نامحدود (دو) - 600,000 تومان",
-            "6ماهه حجم نامحدود (دو) - 1,100,000 تومان",
-            "12ماهه حجم نامحدود (دو) - 1,800,000 تومان"
-        ]
-    
-    for p in plans:
-        keyboard.add(p)
-    keyboard.add("بازگشت")
-    
-    await message.answer(f"📋 لیست تعرفه‌های {message.text}:", reply_markup=keyboard)
-    # این خط حیاتی است: ربات را آماده نگه می‌دارد تا بفهمد کاربر کدام قیمت را انتخاب می‌کند
-    await BuyState.choosing_plan.set()
-# --- تعرفه‌های V2ray ---
-@dp.message_handler(lambda message: "V2ray" in message.text)
-async def v2ray_plans(message: types.Message):
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    plans = ["5گیگ", "10گیگ", "20گیگ", "30گیگ", "50گیگ", "100گیگ"]
-    for p in plans: keyboard.add(f"{p} زمان نامحدود - 100,000 تومان")
-    keyboard.add("بازگشت")
-    await message.answer("لطفا پلن V2ray را انتخاب کنید:", reply_markup=keyboard)
-    await BuyState.choosing_plan.set()
-
-# --- پردازش انتخاب پلن و دریافت نام کاربری ---
-@dp.message_handler(state=BuyState.choosing_plan)
-async def process_plan_choice(message: types.Message, state: FSMContext):
-    if message.text == "بازگشت":
-        await state.finish()
-        return await buy_start(message)
-    
-    # اگر کاربر روی یکی از قیمت‌ها زد
-    if "تومان" in message.text:
-        import re
-        price_match = re.search(r"([\d,]+) تومان", message.text)
-        price = price_match.group(1) if price_match else "100,000"
-        
-        await state.update_data(selected_plan=message.text, plan_price=price)
-        
-        keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        keyboard.add("نام کاربری تصادفی", "لغو عملیات")
-        await message.answer("👤 عالی! حالا یک نام کاربری (انگلیسی) برای اکانت خود وارد کنید:", reply_markup=keyboard)
-        await BuyState.entering_username.set() # رفتن به مرحله بعد
-    else:
-        await message.answer("لطفاً یکی از پلن‌های بالا را انتخاب کنید یا بازگشت را بزنید.")
- # --- ۱. هندلر لغو عملیات (باید در بالاترین قسمت هندلرها باشد) ---
-@dp.message_handler(lambda message: message.text == "لغو عملیات", state="*")
-async def cancel_everything(message: types.Message, state: FSMContext):
-    await state.finish() # پایان دادن به وضعیت فعلی
-    await message.answer("❌ عملیات با موفقیت لغو شد.", reply_markup=main_menu())
-
-# --- ۲. هندلر پردازش نام کاربری (اصلاح شده) ---
-@dp.message_handler(state=BuyState.entering_username)
-async def process_username(message: types.Message, state: FSMContext):
-    # اگر کاربر به جای تایپ نام، دکمه لغو را زد، هندلر بالایی اجرا می‌شود
-    # اما برای احتیاط اینجا هم چک می‌کنیم
-    if message.text == "لغو عملیات":
-        await state.finish()
-        return await message.answer("❌ عملیات لغو شد.", reply_markup=main_menu())
-    
-    uname = message.text
-    if uname == "نام کاربری تصادفی":
-        uname = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    
-    # اعتبارسنجی ساده نام کاربری (فقط حروف و اعداد انگلیسی)
-    if not all(c.isalnum() or c == '_' for c in uname) and message.text != "نام کاربری تصادفی":
-        return await message.answer("❌ نام کاربری فقط باید شامل حروف انگلیسی، عدد و _ باشد.\nدوباره وارد کنید یا روی نام کاربری تصادفی بزنید:")
-
-    data = await state.get_data()
-    inv_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
-    price = data.get('plan_price', "100,000")
-    plan = data.get('selected_plan', "نامشخص")
-
-    invoice_msg = (
-        f"✅ فاکتور پرداخت\n\n"
-        f"🧾 شناسه فاکتور: `{inv_id}`\n"
-        f"📦 سرویس: {plan}\n"
-        f"👤 کاربر: `{uname}`\n"
-        f"💰 مبلغ قابل پرداخت: {price} تومان\n\n"
-        f"👇 جهت تکمیل خرید، روی دکمه پرداخت کلیک کنید."
+# --- بخش خرید و انتخاب سرویس ---
+@dp.callback_query_handler(lambda c: c.data == "buy_menu", state="*")
+async def buy_menu_types(callback: types.CallbackQuery):
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        types.InlineKeyboardButton("🛰 V2ray (نیم بها + نامحدود)", callback_data="type_v2ray"),
+        types.InlineKeyboardButton("🚀 Biubiu VPN", callback_data="type_biubiu"),
+        types.InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_main")
     )
+    await callback.message.edit_text("لطفا نوع سرویس را انتخاب کنید:", reply_markup=kb)
+
+# --- تعرفه‌های Biubiu ---
+@dp.callback_query_handler(lambda c: c.data == "type_biubiu")
+async def biubiu_select_user(callback: types.CallbackQuery):
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("👤 تک کاربره", callback_data="biu_single"),
+        types.InlineKeyboardButton("👥 دو کاربره", callback_data="biu_double")
+    )
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_menu"))
+    await callback.message.edit_text("نوع اشتراک Biubiu را انتخاب کنید:", reply_markup=kb)
+
+@dp.callback_query_handler(lambda c: c.data.startswith("biu_"))
+async def biubiu_plans_list(callback: types.CallbackQuery):
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    if "single" in callback.data:
+        plans = [
+            ("1ماهه نامحدود (تک) - 100,000", "100000"),
+            ("2ماهه نامحدود (تک) - 200,000", "200000"),
+            ("3ماهه نامحدود (تک) - 300,000", "300000")
+        ]
+    else:
+        plans = [
+            ("1ماهه نامحدود (دو) - 300,000", "300000"),
+            ("3ماهه نامحدود (دو) - 600,000", "600000"),
+            ("6ماهه نامحدود (دو) - 1,100,000", "1100000"),
+            ("12ماهه نامحدود (دو) - 1,800,000", "1800000")
+        ]
+    
+    for text, price in plans:
+        kb.add(types.InlineKeyboardButton(f"{text} تومان", callback_data=f"set_Biubiu_{price}"))
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="type_biubiu"))
+    await callback.message.edit_text("یک پلن را انتخاب کنید:", reply_markup=kb)
+
+# --- تعرفه‌های V2ray ---
+@dp.callback_query_handler(lambda c: c.data == "type_v2ray")
+async def v2ray_plans_list(callback: types.CallbackQuery):
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    v2_plans = ["5گیگ", "10گیگ", "20گیگ", "30گیگ", "50گیگ", "100گیگ"]
+    for p in v2_plans:
+        kb.add(types.InlineKeyboardButton(f"{p} زمان نامحدود - 100,000 تومان", callback_data=f"set_V2ray_{p}_100000"))
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_menu"))
+    await callback.message.edit_text("پلن V2ray را انتخاب کنید:", reply_markup=kb)
+
+# --- فرآیند دریافت نام کاربری ---
+@dp.callback_query_handler(lambda c: c.data.startswith("set_"), state="*")
+async def ask_username(callback: types.CallbackQuery, state: FSMContext):
+    data = callback.data.split("_")
+    await state.update_data(p_name=data[1], p_price=data[-1])
     
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv_id}_{price}"))
-    kb.add(types.InlineKeyboardButton("❌ لغو فاکتور", callback_data="cancel_inv"))
+    kb.add(types.InlineKeyboardButton("🎲 نام کاربری تصادفی", callback_data="rand_uname"))
+    kb.add(types.InlineKeyboardButton("❌ لغو خرید", callback_data="back_to_main"))
     
-    await message.answer(invoice_msg, reply_markup=kb, parse_mode="Markdown")
-    # بعد از صدور فاکتور، وضعیت را پاک می‌کنیم تا ربات دیگر منتظر متن نباشد
-    await state.finish()
-# --- هندلرهای دکمه‌های بازگشت و لغو ---
-@dp.message_handler(lambda message: message.text == "بازگشت", state="*")
-async def general_back(message: types.Message, state: FSMContext):
-    await state.finish()
-    await send_welcome(message, state)
+    await callback.message.edit_text("👤 یک نام کاربری (انگلیسی) تایپ و ارسال کنید یا دکمه تصادفی را بزنید:", reply_markup=kb)
+    await BuyState.entering_username.set()
 
-@dp.callback_query_handler(lambda c: c.data == "cancel_inv")
-async def cancel_invoice_cb(callback: types.CallbackQuery):
-    await callback.message.edit_text("❌ فاکتور لغو شد.")
+@dp.callback_query_handler(lambda c: c.data == "rand_uname", state=BuyState.entering_username)
+async def rand_username(callback: types.CallbackQuery, state: FSMContext):
+    uname = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    await state.update_data(username=uname)
+    await show_final_invoice(callback.message, state)
 
-# --- فرآیند پرداخت کارت به کارت ---
-@dp.callback_query_handler(lambda c: c.data.startswith('pay_card_'))
-async def card_pay_info(callback: types.CallbackQuery, state: FSMContext):
-    _, _, inv_id, price = callback.data.split('_')
-    msg = (
-        f"💳 شماره کارت: `{CARD_NUMBER}`\n"
-        f"👤 بنام: {CARD_NAME}\n"
-        f"💰 مبلغ: {price} تومان\n\n"
-        f"📸 لطفاً پس از واریز، **عکس رسید** را اینجا بفرستید."
-    )
-    await bot.send_message(callback.from_user.id, msg, parse_mode="Markdown")
+@dp.message_handler(state=BuyState.entering_username)
+async def custom_username(message: types.Message, state: FSMContext):
+    if not re.match(r'^[a-zA-Z0-9_]+$', message.text):
+        return await message.answer("❌ فقط حروف انگلیسی و عدد مجاز است!")
+    await state.update_data(username=message.text)
+    await show_final_invoice(message, state)
+
+async def show_final_invoice(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    inv_id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    await state.update_data(inv_id=inv_id)
+    
+    price_fmt = "{:,}".format(int(data['p_price']))
+    text = (f"🧾 **فاکتور نهایی خرید**\n\n"
+            f"🆔 شناسه فاکتور: `{inv_id}`\n"
+            f"📦 سرویس: {data['p_name']}\n"
+            f"👤 نام کاربری: `{data['username']}`\n"
+            f"💰 مبلغ: {price_fmt} تومان\n\n"
+            "برای پرداخت یکی از گزینه‌های زیر را انتخاب کنید:")
+    
+    kb = types.InlineKeyboardMarkup()
+    kb.add(types.InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv_id}"))
+    kb.add(types.InlineKeyboardButton("❌ لغو عملیات", callback_data="back_to_main"))
+    
+    if message.from_user.id == bot.id:
+        await message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    else:
+        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+
+# --- پرداخت و تایید ادمین ---
+@dp.callback_query_handler(lambda c: c.data.startswith("pay_card_"), state="*")
+async def card_info(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    price_fmt = "{:,}".format(int(data.get('p_price', 0)))
+    text = (f"💳 **اطلاعات واریز**\n\n"
+            f"شماره کارت: `{CARD_NUMBER}`\n"
+            f"به نام: {CARD_NAME}\n"
+            f"مبلغ: {price_fmt} تومان\n\n"
+            "📸 لطفاً تصویر رسید خود را اینجا ارسال کنید:")
+    await callback.message.edit_text(text, parse_mode="Markdown")
     await BuyState.waiting_for_receipt.set()
-    await state.update_data(current_inv=inv_id)
 
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
-async def handle_receipt(message: types.Message, state: FSMContext):
+async def admin_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    inv_id = data.get('current_inv')
+    await message.answer("✅ رسید با موفقیت ارسال شد. پس از تایید مدیریت، اشتراک شما فعال می‌شود.", 
+                         reply_markup=main_menu_inline())
     
-    await message.answer("✅ رسید دریافت شد و برای ادمین ارسال گردید.\nمنتظر تایید بمانید.", reply_markup=main_menu())
-    
-    admin_kb = types.InlineKeyboardMarkup()
-    # دقت کن: کلمه confirm و reject رو اول آوردم
-    admin_kb.add(types.InlineKeyboardButton("✅ تایید", callback_data=f"approve_{message.from_user.id}_{inv_id}"))
-    admin_kb.add(types.InlineKeyboardButton("❌ رد", callback_data=f"decline_{message.from_user.id}_{inv_id}"))
-    
-    await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, 
-                         caption=f"🔔 رسید جدید\n👤 کاربر: {message.from_user.id}\n🧾 فاکتور: {inv_id}", 
-                         reply_markup=admin_kb)
-    await state.finish()
-    
-    admin_kb = types.InlineKeyboardMarkup()
-    admin_kb.add(types.InlineKeyboardButton("✅ تایید", callback_data=f"adm_confirm_{message.from_user.id}"))
-    admin_kb.add(types.InlineKeyboardButton("❌ رد", callback_data=f"adm_reject_{message.from_user.id}"))
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton("✅ تایید", callback_data=f"adm_ok_{message.from_user.id}_{data['inv_id']}"),
+        types.InlineKeyboardButton("❌ رد", callback_data=f"adm_no_{message.from_user.id}_{data['inv_id']}")
+    )
     
     await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, 
-                         caption=f"🔔 رسید جدید\nکاربر: {message.from_user.id}\nفاکتور: {data.get('current_inv')}", 
-                         reply_markup=admin_kb)
+                         caption=f"🔔 رسید جدید!\nکاربر: {message.from_user.id}\nفاکتور: {data['inv_id']}", 
+                         reply_markup=kb)
     await state.finish()
 
-# --- پاسخ ادمین ---
-@dp.callback_query_handler(lambda c: c.data.startswith(('approve_', 'decline_')))
-async def admin_decision(callback: types.CallbackQuery):
-    data_parts = callback.data.split('_')
-    action = data_parts[0] # approve یا decline
-    user_id = data_parts[1]
-    inv_id = data_parts[2]
-
-    if action == "approve":
-        await bot.send_message(user_id, f"✅ رسید فاکتور {inv_id} تایید شد!\n,اطلاعات شما در بخش اشتراک من قابل مشاهده است اشتراک شما فعال گردید.")
-        await callback.message.edit_caption(caption=f"✅ این رسید توسط ادمین تایید شد.\nکاربر: {user_id}")
+@dp.callback_query_handler(lambda c: c.data.startswith("adm_"), state="*")
+async def admin_verify(callback: types.CallbackQuery):
+    _, action, uid, inv = callback.data.split("_")
+    if action == "ok":
+        await bot.send_message(uid, f"🎉 فاکتور {inv} تایید شد! اکانت شما در حال آماده‌سازی است.")
+        await callback.message.edit_caption(caption=f"✅ تایید شد (کاربر {uid})")
     else:
-        await bot.send_message(user_id, "❌ رسید شما توسط ادمین رد شد.\nاحتمالا واریزی تایید نشده است. با پشتیبانی در ارتباط باشید.")
-        await callback.message.edit_caption(caption=f"❌ این رسید رد شد.\nکاربر: {user_id}")
-    
+        await bot.send_message(uid, f"❌ رسید فاکتور {inv} رد شد. لطفاً مجدد تلاش کنید.")
+        await callback.message.edit_caption(caption=f"❌ رد شد (کاربر {uid})")
     await callback.answer()
 
 if __name__ == '__main__':
