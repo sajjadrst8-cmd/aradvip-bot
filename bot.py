@@ -135,6 +135,16 @@ async def process_plan_choice(message: types.Message, state: FSMContext):
     if message.text == "بازگشت":
         await state.finish()
         return await buy_start(message)
+
+    # این هندلر باید بالاتر از بقیه هندلرها (مثلاً قبل از هندلر دریافت عکس) باشد
+@dp.message_handler(lambda message: message.text == "لغو عملیات", state="*")
+async def cancel_everything(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:
+        return
+
+    await state.finish() # خروج از حالت انتظار برای عکس یا نام کاربری
+    await message.answer("❌ عملیات با موفقیت لغو شد.", reply_markup=main_menu())
     
     price_match = re.search(r"([\d,]+) تومان", message.text)
     price = price_match.group(1) if price_match else "100,000"
