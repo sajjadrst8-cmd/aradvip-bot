@@ -59,13 +59,13 @@ async def biubiu_plans(callback: types.CallbackQuery):
     kb = types.InlineKeyboardMarkup(row_width=1)
     
     # انتخاب لیست مناسب از فایل کانفیگ بر اساس انتخاب کاربر (1 کاربره یا 2 کاربره)
-    plans = config.BIUBIU_1U_PLANS if mode == "1" else config.BIUBIU_2U_PLANS
-    
-    for text, price, name in plans:
-        kb.add(types.InlineKeyboardButton(text, callback_data=f"plan_biu_{price}_{name}"))
-        
-    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu"))
-    await callback.message.edit_text("🛒 پلن مورد نظر Biubiu را انتخاب کنید:", reply_markup=kb)
+   @dp.callback_query_handler(lambda c: c.data == "buy_biubiu")
+async def biubiu_user_choice(callback: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(InlineKeyboardButton("👤 ۱ کاربره", callback_data="biu_1"),
+           InlineKeyboardButton("👥 ۲ کاربره", callback_data="biu_2"))
+    kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
+    await callback.message.edit_text("تعداد کاربر اکانت Biubiu را انتخاب کنید:", reply_markup=kb)
 
 
 # --- دریافت نام کاربری با دکمه نام تصادفی ---
