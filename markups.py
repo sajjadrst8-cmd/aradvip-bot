@@ -19,10 +19,11 @@ def buy_menu():
            InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
     return kb
 
-# متد پرداخت باید inv_id بگیره تا بدونیم کدوم فاکتوره
-def payment_methods(inv_id):
+def payment_methods(inv_id): # حتما inv_id بگیرد
     kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv_id}"),
-           InlineKeyboardButton("💰 کیف پول", callback_data=f"pay_wallet_{inv_id}"),
-           InlineKeyboardButton("❌ لغو فاکتور", callback_data="main_menu"))
+    kb.add(
+        InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv_id}"),
+        InlineKeyboardButton("💰 کیف پول", callback_data=f"pay_wallet_{inv_id}"),
+        InlineKeyboardButton("❌ لغو و بازگشت", callback_data="main_menu")
+    )
     return kb
