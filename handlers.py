@@ -146,23 +146,40 @@ async def card_payment(callback: types.CallbackQuery, state: FSMContext):
 async def handle_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
     await message.answer("✅ رسید دریافت شد. منتظر تایید مدیریت بمانید.")
+    
+    # اصلاح بخش کپشن برای جلوگیری از خطای Markdown
+    username = str(data.get('username', 'نامشخص')).replace("_", "\\_") # خنثی کردن کاراکتر زیرخط
+    
     kb = types.InlineKeyboardMarkup().add(
         types.InlineKeyboardButton("✅ تایید", callback_data=f"admin_ok_{message.from_user.id}_{data['price']}"),
         types.InlineKeyboardButton("❌ رد", callback_data=f"admin_no_{message.from_user.id}_0")
     )
-    await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, 
-                         caption=f"💰 رسید جدید\n👤 کاربر: `{message.from_user.id}`\n💵 مبلغ: {data['price']:,}\n📦 پلن: {data.get('plan_name')}\n👤 یوزرنیم: {data.get('username')}", 
-                         reply_markup=kb, parse_mode="Markdown")
+    
+    caption_text = (
+        f"💰 **رسید جدید**\n\n"
+        f"👤 کاربر: `{message.from_user.id}`\n"
+        f"💵 مبلغ: {data['price']:,} تومان\n"
+        f"📦 پلن: {data.get('plan_name')}\n"
+        f"👤 یوزرنیم: `{username}`"
+    )
+    
+    try:
+        await bot.send_photo(
+            ADMIN_ID, 
+            message.photo[-1].file_id, 
+            caption=caption_text, 
+            reply_markup=kb, 
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        # اگر باز هم خطا داد، بدون مارک‌داون بفرست که ربات کرش نکنه
+        await bot.send_photo(
+            ADMIN_ID, 
+            message.photo[-1].file_id, 
+            caption=caption_text.replace("*", "").replace("`", ""), 
+            reply_markup=kb
+        )
+        
     await state.finish()
-
-@dp.callback_query_handler(lambda c: c.data.startswith("pay_wallet_"), state="*")
-async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
-    user = await users_col.find_one({"user_id": callback.from_user.id})
-    data = await state.get_data()
-    if user.get('wallet', 0) >= data['price']:
-        await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -data['price']}})
-        await callback.message.edit_text("✅ پرداخت موفق! سفارش شما برای مدیریت ارسال شد.")
-        await bot.send_message(ADMIN_ID, f"🚀 خرید با کیف پول\n👤 کاربر: `{callback.from_user.id}`\n💰 مبلغ: {data['price']}")
-        await state.finish()
     else:
         await callback.answer("❌ موجودی کافی نیست!", show_alert=True)
