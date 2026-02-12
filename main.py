@@ -4,44 +4,45 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from database import get_user, users_col
 import markups as nav
 
+# --- تنظیمات ---
 API_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 863961919
-
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
+# --- هندلرهای پایه ---
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
-    referrer = message.get_args()
-    user = await get_user(message.from_user.id, referrer)
-    
-    # اگر زیرمجموعه کسی شده باشد
-    if referrer and int(referrer) != message.from_user.id:
-        try:
-            await bot.send_message(referrer, f"🔔 کاربر {message.from_user.id} با لینک شما وارد شد.")
-        except: pass
-
+    # ... کدهای قبلی استارت ...
     await message.answer("لطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
 
-@dp.callback_query_handler(lambda c: c.data == "account")
-async def account(callback: types.CallbackQuery):
-    u = await get_user(callback.from_user.id)
-    text = (f"👤 شناسه کاربری: {u['user_id']}\n"
-            f"🔐 وضعیت: 👤 کاربر عادی\n"
-            f"💰 موجودی کیف پول: {u['wallet']:,} تومان\n"
-            f"👥 تعداد زیرمجموعه‌ها: 0\n\n"
-            f"📆 تاریخ عضویت: {u['join_date']}")
+# --- بخش تایید ادمین (دقیقا اینجا اضافه کن) ---
+@dp.callback_query_handler(lambda c: c.data.startswith("admin_"))
+async def admin_verify(callback: types.CallbackQuery):
+    # تجزیه اطلاعات از دکمه: admin_ok_USERID_AMOUNT
+    parts = callback.data.split("_")
+    status = parts[1] # ok یا no
+    uid = int(parts[2])
+    amt = float(parts[3])
+
+    if status == "ok":
+        # اضافه کردن پول به کیف پول کاربر در مانگو
+        await users_col.update_one({"user_id": uid}, {"$inc": {"wallet": amt}})
+        
+        # اطلاع‌رسانی به کاربر
+        await bot.send_message(uid, f"✅ رسید شما توسط مدیریت تأیید شد!\nمبلغ {amt:,} تومان به کیف پول شما اضافه شد.")
+        
+        # تغییر متن دکمه برای ادمین
+        await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ تأیید و شارژ شد.")
+    else:
+        await bot.send_message(uid, "❌ رسید واریزی شما توسط مدیریت تأیید نشد.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
+        await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ رد شد.")
     
-    kb = types.InlineKeyboardMarkup(row_width=1)
-    kb.add(types.InlineKeyboardButton("➕ افزایش موجودی", callback_data="charge_wallet"),
-           types.InlineKeyboardButton("👥 زیرمجموعه‌گیری", callback_data="ref_link"),
-           types.InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
-    await callback.message.edit_text(text, reply_markup=kb)
+    await callback.answer()
 
-@dp.callback_query_handler(lambda c: c.data == "main_menu")
-async def back_main(callback: types.CallbackQuery):
-    await callback.message.edit_text("لطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
+# --- وارد کردن هندلرهای دیگر ---
+import handlers 
 
-import handlers
+# --- اجرای ربات ---
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
