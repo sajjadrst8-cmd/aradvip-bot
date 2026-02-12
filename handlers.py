@@ -98,32 +98,45 @@ async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
     
     # ۵. فراخوانی مستقیم منطق صدور فاکتور (بدون نیاز به ارسال پیام مجدد توسط کاربر)
     # توجه: اینجا به جای فرستادن پیام جدید، از همان تابع اصلاح شده پایین استفاده می‌کنیم
-    await proceed_to_invoice(callback.message, state, r_name)
+    # این تابع منطق مشترک صدور فاکتور است
+async def proceed_to_invoice(message: types.Message, state: FSMContext, username: str):
+    data = await state.get_data()
+    price = data.get('price')
+    s_type = data.get('s_type')
+    plan_name = data.get('plan_name')
 
-    
-    # هوشمندسازی نام پلن
-    display_plan = data['plan_name']
-    if data['s_type'] == "biu":
-        parts = data['plan_name'].split('-')
+    # هوشمندسازی نام پلن برای نمایش
+    display_plan = plan_name
+    if s_type == "biu":
+        parts = plan_name.split('-')
         users = "1u" if "1" in parts[0] else "2u"
         display_plan = f"BiuBiu_{parts[1].lower()}{users}"
-    elif data['s_type'] == "v2ray":
-        display_plan = f"V2ray_{data['plan_name']}"
+    elif s_type == "v2ray":
+        display_plan = f"V2ray_{plan_name}"
 
     # ثبت در دیتابیس
-    inv = await add_invoice(message.from_user.id, {
-        'price': data['price'], 'plan': display_plan, 
-        'type': data['s_type'], 'username': username
+    inv = await add_invoice(message.chat.id, {
+        'price': price, 'plan': display_plan, 
+        'type': s_type, 'username': username
     })
     
     text = (
-        f"🧾 **فاکتور پرداخت**\n\n"
-        f"🔹 سرویس: {data['s_type'].upper()}\n"
+        f"🧾 **فاکتور پرداخت آراد VIP**\n\n"
+        f"🔹 سرویس: **{s_type.upper()}**\n"
         f"📦 پلن: `{display_plan}`\n"
         f"👤 نام کاربری: `{username}`\n"
-        f"💰 مبلغ: **{data['price']:,} تومان**"
+        f"💰 مبلغ: **{price:,} تومان**\n\n"
+        f"👇 روش پرداخت را انتخاب کنید:"
     )
+    # ارسال فاکتور نهایی
     await message.answer(text, reply_markup=nav.payment_methods(inv['inv_id']), parse_mode="Markdown")
+
+# حالا هندلر تایپ دستی را هم به تابع بالا وصل می‌کنیم:
+@dp.message_handler(state=BuyState.entering_username)
+async def handle_manual_username(message: types.Message, state: FSMContext):
+    username = message.text.strip().lower()
+    await state.update_data(username=username)
+    await proceed_to_invoice(message, state, username)
 
 # --- ۶. فرآیند پرداخت ---
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_card_"), state="*")
