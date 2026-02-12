@@ -10,10 +10,12 @@ class BuyState(StatesGroup):
     entering_username = State()
     waiting_for_receipt = State()
 
-# تابع تولید نام کاربری تصادفی
+# این رو همون بالا، زیر ایمپورت‌ها بذار
 def generate_random_username():
     chars = string.ascii_lowercase + string.digits
-    return "user_" + ''.join(random.choice(chars) for _ in range(6))
+    random_part = ''.join(random.choice(chars) for _ in range(6))
+    return f"AradVIP_{random_part}"
+
 
 # --- ۱. دستور استارت ---
 @dp.message_handler(commands=['start'], state="*")
@@ -72,25 +74,32 @@ async def biubiu_plans(callback: types.CallbackQuery):
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu"))
     await callback.message.edit_text("🛒 پلن مورد نظر Biubiu را انتخاب کنید:", reply_markup=kb)
 
-# --- ۴. دریافت نام کاربری (با دکمه نام تصادفی) ---
+# --- دریافت نام کاربری با دکمه نام تصادفی ---
 @dp.callback_query_handler(lambda c: c.data.startswith("plan_"), state="*")
 async def ask_username(callback: types.CallbackQuery, state: FSMContext):
     parts = callback.data.split("_")
+    # ذخیره اطلاعات پلن در حافظه موقت
     await state.update_data(price=int(parts[2]), plan_name=parts[3], s_type=parts[1])
     await BuyState.entering_username.set()
     
+    # ساخت دکمه برای تولید اسم رندوم
     kb = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("🎲 انتخاب نام تصادفی", callback_data="random_name")
+        types.InlineKeyboardButton("🎲 انتخاب نام تصادفی (AradVIP_xxxx)", callback_data="random_name")
     )
     await callback.message.answer("👤 یک نام کاربری (انگلیسی) ارسال کنید یا دکمه زیر را بزنید:", reply_markup=kb)
 
+# --- این هندلر رو هم دقیقاً زیر همین کد قبلی اضافه کن ---
 @dp.callback_query_handler(lambda c: c.data == "random_name", state=BuyState.entering_username)
 async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
     r_name = generate_random_username()
-    # شبیه‌سازی ارسال پیام توسط کاربر برای استفاده از کد ایجاد فاکتور
+    # آپدیت کردن یوزرنیم در دیتای استیت
+    await state.update_data(username=r_name)
+    
+    # ساخت پیام مجازی برای فرستادن به مرحله بعد
     msg = types.Message(text=r_name, from_user=callback.from_user, chat=callback.message.chat)
-    await create_invoice(msg, state)
+    await create_invoice(msg, state) # صدا کردن مرحله صدور فاکتور
     await callback.answer(f"نام انتخاب شد: {r_name}")
+
 
 @dp.message_handler(state=BuyState.entering_username)
 async def create_invoice(message: types.Message, state: FSMContext):
