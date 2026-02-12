@@ -33,13 +33,18 @@ async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
 async def my_account_handler(callback: types.CallbackQuery):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     wallet = user.get('wallet', 0)
+    
+    # متنی که کاربر می‌بیند (می‌توانی آیدی عددی را هم اضافه کنی)
     text = (
-        f"👤 **اطلاعات حساب شما**\n\n"
-        f"💰 موجودی: {wallet:,} تومان\n"
-        f"🎁 زیرمجموعه: {user.get('ref_count', 0)} نفر"
+        f"👤 **جزئیات حساب کاربری**\n\n"
+        f"🆔 آیدی عددی: `{callback.from_user.id}`\n"
+        f"💰 موجودی کیف پول: **{wallet:,} تومان**\n"
+        f"🎁 تعداد زیرمجموعه: **{user.get('ref_count', 0)} نفر**\n\n"
+        f"یکی از گزینه‌های زیر را انتخاب کنید:"
     )
-    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"))
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    
+    # فراخوانی کیبورد اصلاح شده
+    await callback.message.edit_text(text, reply_markup=nav.account_menu(), parse_mode="Markdown")
 
 @dp.callback_query_handler(lambda c: c.data == "buy_new", state="*")
 async def buy_new_handler(callback: types.CallbackQuery):
