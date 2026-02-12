@@ -148,12 +148,12 @@ async def card_payment(callback: types.CallbackQuery, state: FSMContext):
     await BuyState.waiting_for_receipt.set()
     
     text = (
-        f"📌 **راهنمای واریز**\n\n"
-        f"مبلغ **{price:,} تومان** را به شماره کارت زیر واریز کنید:\n\n"
-        f"💳 شماره کارت: `5057851560122222`\n"
-        f"👤 بنام: **سجاد رستگاران**\n\n"
-        f"📸 پس از واریز، رسید را اینجا ارسال کنید."
-    )
+    f"📌 **راهنمای واریز**\n\n"
+    f"مبلغ **{price:,} تومان** را به شماره کارت زیر واریز کنید:\n\n"
+    f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
+    f"👤 بنام: **{config.CARD_NAME}**\n\n"
+    f"📸 پس از واریز، رسید را اینجا ارسال کنید."
+)
     await callback.message.answer(text, parse_mode="Markdown")
 
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
