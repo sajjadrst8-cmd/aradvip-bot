@@ -38,18 +38,27 @@ async def my_account_handler(callback: types.CallbackQuery):
     ref_count = user.get('ref_count', 0)
     
     # ساخت لینک دعوت اختصاصی
+    @dp.callback_query_handler(lambda c: c.data == "referral_section", state="*")
+async def referral_handler(callback: types.CallbackQuery):
+    user = await users_col.find_one({"user_id": callback.from_user.id})
     bot_info = await bot.get_me()
+    
+    # ساخت لینک دعوت
     invite_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
     
     text = (
-        f"👤 **جزئیات حساب کاربری**\n\n"
-        f"💰 موجودی: **{wallet:,} تومان**\n"
-        f"🎁 تعداد زیرمجموعه: **{ref_count} نفر**\n\n"
-        f"🔗 **لینک دعوت شما:**\n`{invite_link}`\n\n"
-        f"💡 با دعوت دوستان خود، هدیه دریافت کنید!"
+        f"💰 **سیستم کسب درآمد (زیرمجموعه‌گیری)**\n\n"
+        f"👥 تعداد زیرمجموعه‌های شما: **{user.get('ref_count', 0)} نفر**\n"
+        f"🎁 پاداش شما: **۱۰٪ از هر خرید زیرمجموعه**\n\n"
+        f"🔗 **لینک دعوت اختصاصی شما:**\n"
+        f"`{invite_link}`\n\n"
+        f"کافیست لینک بالا را برای دوستان خود بفرستید. با اولین خرید آن‌ها، کیف پول شما شارژ می‌شود!"
     )
     
-    await callback.message.edit_text(text, reply_markup=nav.account_menu(), parse_mode="Markdown")
+    # دکمه بازگشت به پنل کاربری
+    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت به حساب کاربری", callback_data="my_account"))
+    
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
 @dp.callback_query_handler(lambda c: c.data == "buy_new", state="*")
 async def buy_new_handler(callback: types.CallbackQuery):
