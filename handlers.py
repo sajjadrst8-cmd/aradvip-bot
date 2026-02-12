@@ -2,7 +2,7 @@ import random, string, datetime
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from main import dp, bot, ADMIN_ID
+from loader import dp, bot, ADMIN_ID
 from database import get_user, users_col, add_invoice
 import markups as nav
 
