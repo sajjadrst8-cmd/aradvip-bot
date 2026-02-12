@@ -91,7 +91,7 @@ async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer(f"نام انتخاب شد: {r_name}")
 
 
-@@dp.message_handler(state=BuyState.entering_username)
+@dp.message_handler(state=BuyState.entering_username)
 async def create_invoice(message: types.Message, state: FSMContext):
     username = message.text.strip().lower()
     data = await state.get_data()
