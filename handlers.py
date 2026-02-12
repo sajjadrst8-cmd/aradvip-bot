@@ -211,21 +211,44 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     await state.finish()
 
 # --- بخش کد تخفیف ---
-@dp.callback_query_handler(lambda c: c.data == "apply_off")
-async def ask_promo(callback: types.CallbackQuery):
+# --- سیستم کد تخفیف هوشمند (نسخه نهایی) ---
+
+@dp.callback_query_handler(lambda c: c.data == "apply_off", state="*")
+async def start_promo(callback: types.CallbackQuery):
     await BuyState.entering_offcode.set()
-    await callback.message.answer("🎟 لطفا کد تخفیف خود را وارد کنید:")
+    await callback.message.answer("🎟 لطفاً کد تخفیف خود را وارد کنید:\n(برای لغو، روی دکمه بازگشت یا لغو کلیک کنید)")
 
 @dp.message_handler(state=BuyState.entering_offcode)
-async def check_promo(message: types.Message, state: FSMContext):
-    promo = message.text
-    # به عنوان مثال یک کد ثابت: Arad2024
-    if promo == "Arad2024":
-        await message.answer("✅ کد تخفیف معتبر بود! 20% تخفیف اعمال شد.")
-        # اینجا منطق کسر مبلغ را اضافه کن
+async def process_promo(message: types.Message, state: FSMContext):
+    promo_code = message.text.strip()
+    data = await state.get_data()
+    current_price = data.get('price', 0)
+
+    # لیست کدهای تخفیف معتبر (می‌توانی اینجا کدهای جدید اضافه کنی)
+    valid_codes = {
+        "ARAD_NEW": 0.20,  # 20 درصد تخفیف
+        "GIFT10": 0.10     # 10 درصد تخفیف
+    }
+
+    if promo_code in valid_codes:
+        discount_percent = valid_codes[promo_code]
+        discount_amount = current_price * discount_percent
+        new_price = int(current_price - discount_amount) # رند کردن مبلغ
+        
+        # ذخیره مبلغ جدید در حافظه موقت ربات
+        await state.update_data(price=new_price)
+        
+        await message.answer(
+            f"✅ کد تخفیف با موفقیت اعمال شد!\n\n"
+            f"💰 مبلغ قبلی: {current_price:,} تومان\n"
+            f"🎁 مبلغ پس از تخفیف: {new_price:,} تومان\n\n"
+            f"اکنون می‌توانید برای پرداخت اقدام کنید."
+        )
     else:
-        await message.answer("❌ کد تخفیف نامعتبر است.")
-    await state.finish()
+        await message.answer("❌ کد تخفیف وارد شده معتبر نیست یا منقضی شده است.")
+    
+    # بعد از چک کردن، وضعیت را به حالت عادی برمی‌گردانیم (اما دیتا در حافظه می‌ماند)
+    await state.set_state(None) 
 
 # --- پنل مدیریت اختصاصی ---
 
