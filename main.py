@@ -58,10 +58,8 @@ async def admin_verify(callback: types.CallbackQuery):
     
     await callback.answer()
 
-# --- وارد کردن تمام هندلرهای فایل handlers.py ---
-# خیلی مهم: این خط باید حتماً بعد از تعریف dp باشد
-import handlers
 
-# --- اجرای ربات ---
+from handlers import dp 
+
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
