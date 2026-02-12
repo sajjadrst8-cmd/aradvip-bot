@@ -48,9 +48,11 @@ def get_user_info(user_id):
     data = cursor.fetchone()
     if not data:
         now = datetime.now().strftime("%Y/%m/%d - %H:%M")
-        cursor.execute("INSERT INTO users (user_id, wallet, join_date) VALUES (?, 0, ?)", (user_id, 0, now))
+        # اصلاح خطا: تعداد علامت سوال‌ها با مقادیر یکی شد
+        cursor.execute("INSERT INTO users (user_id, wallet, join_date) VALUES (?, ?, ?)", (user_id, 0, now))
         conn.commit()
         data = (0, None, now)
+    
     cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by=?", (user_id,))
     ref_count = cursor.fetchone()[0]
     conn.close()
@@ -81,13 +83,13 @@ async def cmd_start(message: types.Message, state: FSMContext):
         cursor = conn.cursor()
         cursor.execute("UPDATE users SET referred_by=? WHERE user_id=? AND referred_by IS NULL", (ref_id, user_id))
         if cursor.rowcount > 0:
-            try: await bot.send_message(ref_id, f"کاربر {user_id} با کد دعوت شما وارد ربات شد")
+            try: await bot.send_message(ref_id, f"✅ کاربر {user_id} با کد دعوت شما وارد ربات شد")
             except: pass
         conn.commit()
         conn.close()
     await message.answer("🌹 به ربات آراد وی‌آی‌پی خوش آمدید!", reply_markup=main_menu_inline())
 
-# --- منوی خرید و نمایش تعرفه‌ها (اصلاح شده) ---
+# --- منوی خرید و نمایش تعرفه‌ها ---
 @dp.callback_query_handler(lambda c: c.data == "buy_menu", state="*")
 async def buy_menu_types(callback: types.CallbackQuery):
     kb = types.InlineKeyboardMarkup(row_width=1)
@@ -110,22 +112,21 @@ async def biubiu_plans_list(callback: types.CallbackQuery):
     if "single" in callback.data:
         plans = [("1ماهه نامحدود (تک) - 100,000", "100000"), ("2ماهه نامحدود (تک) - 200,000", "200000"), ("3ماهه نامحدود (تک) - 300,000", "300000")]
     else:
-        plans = [("1ماهه نامحدود (دو) - 300,000", "300000"), ("3ماهه نامحدود (دو) - 600,000", "600000"), ("6ماهه نامحدود (دو) - 1,100,000", "1100000"), ("12ماهه نامحدود (دو) - 1,800,000", "1800000")]
+        plans = [("1ماهه (دو) - 300,000", "300000"), ("3ماهه (دو) - 600,000", "600000"), ("6ماهه (دو) - 1,100,000", "1100000"), ("12ماهه (دو) - 1,800,000", "1800000")]
     for text, price in plans:
-        kb.add(types.InlineKeyboardButton(f"{text} تومان", callback_data=f"set_plan_Biu_{price}"))
+        kb.add(types.InlineKeyboardButton(f"{text} تومان", callback_data=f"set_buy_{price}"))
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="type_biubiu"))
     await callback.message.edit_text("یک پلن را انتخاب کنید:", reply_markup=kb)
 
 @dp.callback_query_handler(lambda c: c.data == "type_v2ray")
 async def v2ray_plans_list(callback: types.CallbackQuery):
     kb = types.InlineKeyboardMarkup(row_width=1)
-    v2_plans = ["5گیگ", "10گیگ", "20گیگ", "30گیگ", "50گیگ", "100گیگ"]
-    for p in v2_plans:
-        kb.add(types.InlineKeyboardButton(f"{p} زمان نامحدود - 100,000 تومان", callback_data=f"set_plan_V2ray_{p}_100000"))
+    for g in [5, 10, 20, 30, 50, 100]:
+        kb.add(types.InlineKeyboardButton(f"V2ray {g} گیگ - 100,000 تومان", callback_data=f"set_buy_100000"))
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_menu"))
     await callback.message.edit_text("پلن V2ray را انتخاب کنید:", reply_markup=kb)
 
-# --- حساب کاربری و زیرمجموعه ---
+# --- حساب کاربری ---
 @dp.callback_query_handler(lambda c: c.data == "account", state="*")
 async def view_account(callback: types.CallbackQuery):
     data, ref_count = get_user_info(callback.from_user.id)
@@ -135,6 +136,7 @@ async def view_account(callback: types.CallbackQuery):
             f"💰 موجودی کیف پول: {wallet:,.0f} تومان\n"
             f"👥 تعداد زیرمجموعه‌ها: {ref_count}\n\n"
             f"📆 تاریخ عضویت: {join_date}")
+    
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(types.InlineKeyboardButton("افزایش موجودی", callback_data="add_balance"),
            types.InlineKeyboardButton("زیرمجموعه گیری", callback_data="ref_system"))
@@ -143,14 +145,14 @@ async def view_account(callback: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda c: c.data == "ref_system")
 async def ref_page(callback: types.CallbackQuery):
-    bot_name = (await bot.get_me()).username
-    link = f"https://t.me/{bot_name}?start={callback.from_user.id}"
+    bot_info = await bot.get_me()
+    link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
     text = (f"🔗 لینک دعوت شما:\n`{link}`\n\n"
             f"دوستان خودتونو به ربات دعوت کنید و 10 درصد از مبلغ خریدشونو دریافت کنید")
     kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("بازگشت", callback_data="account"))
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
-# --- افزایش موجودی و فاکتور ---
+# --- افزایش موجودی ---
 @dp.callback_query_handler(lambda c: c.data == "add_balance")
 async def charge_start(callback: types.CallbackQuery):
     await BotState.entering_amount.set()
@@ -159,12 +161,12 @@ async def charge_start(callback: types.CallbackQuery):
                                      "حداقل مبلغ شارژ 70000 تومن و حداکثر 2000000 تومان می‌باشد", reply_markup=kb)
 
 @dp.message_handler(state=BotState.entering_amount)
-async def charge_amount(message: types.Message, state: FSMContext):
+async def charge_process(message: types.Message, state: FSMContext):
     if not message.text.isdigit(): return await message.answer("❌ فقط عدد وارد کنید")
-    amount = int(message.text)
-    if amount < 70000 or amount > 2000000: return await message.answer("❌ مبلغ نامعتبر است (بین 70هزار تا 2میلیون)")
-    inv_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=15))
-    await state.update_data(charge_amt=amount, inv_id=inv_id, off_applied=False)
+    amt = int(message.text)
+    if amt < 70000 or amt > 2000000: return await message.answer("❌ مبلغ باید بین 70,000 تا 2,000,000 باشد.")
+    inv_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+    await state.update_data(charge_amt=amt, inv_id=inv_id, off_applied=False)
     await show_charge_invoice(message, state)
 
 async def show_charge_invoice(message: types.Message, state: FSMContext):
@@ -172,18 +174,16 @@ async def show_charge_invoice(message: types.Message, state: FSMContext):
     amt = data['charge_amt']
     final = amt - (amt * (OFF_PERCENT/100)) if data['off_applied'] else amt
     text = (f"✅ فاکتور افزایش موجودی ایجاد شد.\n\n🧾 شناسه: `{data['inv_id']}`\n📌 وضعیت: 🟠 در انتظار\n💰 مبلغ: {amt:,.0f} تومان\n"
-            f"💸 پس از تخفیف: {f'{final:,.0f} تومان' if data['off_applied'] else '- تومان'}\n📦 نوع: 💰 شارژ کیف پول\n"
-            f"📆 تاریخ ثبت: {datetime.now().strftime('%Y/%m/%d - %H:%M')}\n👤 کاربر: {message.from_user.id if hasattr(message, 'from_user') else '-'}")
+            f"💸 پس از تخفیف: {f'{final:,.0f} تومان' if data['off_applied'] else '- تومان'}\n📦 نوع: 💰 شارژ کیف پول\n👤 کاربر: {message.from_user.id if hasattr(message, 'from_user') else '-'}")
     kb = types.InlineKeyboardMarkup(row_width=1)
-    kb.add(types.InlineKeyboardButton("پرداخت فاکتور", callback_data="pay_charge_now"),
-           types.InlineKeyboardButton("اعمال کد تخفیف", callback_data="use_off_code"),
-           types.InlineKeyboardButton("لغو فاکتور", callback_data="back_to_main"),
-           types.InlineKeyboardButton("بازگشت", callback_data="account"))
+    kb.add(types.InlineKeyboardButton("💳 پرداخت فاکتور", callback_data="pay_final"),
+           types.InlineKeyboardButton("🎟 اعمال کد تخفیف", callback_data="apply_off"),
+           types.InlineKeyboardButton("لغو فاکتور", callback_data="back_to_main"))
     if message.from_user.id == bot.id: await message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
     else: await message.answer(text, reply_markup=kb, parse_mode="Markdown")
 
 @dp.callback_query_handler(lambda c: c.data == "back_to_main", state="*")
-async def back_main(callback: types.CallbackQuery, state: FSMContext):
+async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
     await callback.message.edit_text("🌹 منوی اصلی:", reply_markup=main_menu_inline())
 
