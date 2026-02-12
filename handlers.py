@@ -188,3 +188,22 @@ async def admin_decision(callback: types.CallbackQuery):
         await bot.send_message(user_id, "❌ رسید شما رد شد. در صورت لزوم به پشتیبانی پیام دهید.")
         await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ رد شد.", reply_markup=None)
     await callback.answer()
+
+# --- ۸. هندلرهای دکمه‌های پنل کاربری (بخش اختیاری) ---
+
+@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
+async def charge_wallet_info(callback: types.CallbackQuery):
+    """این هندلر وقتی کاربر روی شارژ کیف پول می‌زند اجرا می‌شود"""
+    text = (
+        "💳 **روش‌های شارژ حساب:**\n\n"
+        "۱- برای شارژ از طریق **درگاه مستقیم**، مبلغ را وارد کنید (به زودی).\n"
+        "۲- برای شارژ از طریق **کارت به کارت**، به پشتیبانی پیام دهید.\n\n"
+        "🆔 پشتیبانی: @Arad_Support" # اینجا یوزرنیم پشتیبانی خودت را بزن
+    )
+    await callback.message.edit_text(text, reply_markup=nav.account_menu(), parse_mode="Markdown")
+
+@dp.callback_query_handler(lambda c: c.data == "my_services", state="*")
+async def my_services_list(callback: types.CallbackQuery):
+    """این هندلر لیست خریدهای تایید شده کاربر را نشان می‌دهد"""
+    # در آینده می‌توانید اینجا کوئری بزنید به دیتابیس (Invoices) و لیست را نشان دهید
+    await callback.answer("📦 در حال حاضر سرویس فعالی برای شما ثبت نشده است.", show_alert=True)
