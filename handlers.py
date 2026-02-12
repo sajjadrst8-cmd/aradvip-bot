@@ -25,21 +25,18 @@ async def start(message: types.Message):
     await message.answer("✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
 
 # --- ۲. حساب کاربری (فارسی) ---
-@dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
-async def my_account(callback: types.CallbackQuery):
+@dp.callback_query_handler(lambda c: c.data == "my_account")
+async def my_account_handler(callback: types.CallbackQuery):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     wallet = user.get('wallet', 0)
     text = (
         f"👤 **اطلاعات حساب شما**\n\n"
-        f"🆔 آیدی عددی: `{callback.from_user.id}`\n"
-        f"💰 موجودی کیف پول: {wallet:,} تومان\n"
-        f"🎁 تعداد زیرمجموعه: {user.get('ref_count', 0)} نفر\n\n"
-        f"وضعیت حساب: فعال ✅"
+        f"💰 موجودی: {wallet:,} تومان\n"
+        f"🎁 زیرمجموعه: {user.get('ref_count', 0)} نفر"
     )
-    @dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
-async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
-    await state.finish() # لغو هر عملیاتی که کاربر داشت انجام میداد
-    await callback.message.edit_text("✨ به منوی اصلی خوش آمدید:", reply_markup=nav.main_menu())
+    # یک دکمه بازگشت ساده بساز
+    kb = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"))
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
 @dp.callback_query_handler(lambda c: c.data == "buy_new")
 async def buy_new_handler(callback: types.CallbackQuery):
