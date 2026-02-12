@@ -106,20 +106,28 @@ async def biubiu_select(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "type_v2ray")
 async def v2ray_plans(callback: types.CallbackQuery):
     kb = types.InlineKeyboardMarkup(row_width=1)
-    # لیست کامل حجم‌های V2ray
-    v2_plans = [
-        ("5 گیگ بدون محدودیت کاربر 50 هزار تومن"),
-        ("V2ray 10 گیگ (زمان نامحدود)", "80000"),
-        ("V2ray 20 گیگ (زمان نامحدود)", "120000"),
-        ("V2ray 30 گیگ (زمان نامحدود)", "150000"),
-        ("V2ray 50 گیگ (زمان نامحدود)", "200000"),
-        ("V2ray 100 گیگ (زمان نامحدود)", "350000")
+    
+    # --- بخش تنظیمات (اینجا رو راحت میتونی تغییر بدی) ---
+    # فرمت: (متن دکمه, قیمت برای محاسبات)
+    v2_list = [
+        ("5گیگ زمان نامحدود 100 هزار تومان", "100000"),
+        ("10گیگ زمان نامحدود 100 هزار تومان", "100000"),
+        ("20گیگ زمان نامحدود 100 هزار تومان", "100000"),
+        ("30گیگ زمان نامحدود 100 هزار تومان", "100000"),
+        ("50گیگ زمان نامحدود 100 هزار تومان", "100000"),
+        ("100گیگ زمان نامحدود 100 هزار تومان", "100000"),
+        ("200گیگ زمان نامحدود 100 هزار تومان", "100000"),
+        ("300گیگ زمان نامحدود 100 هزار تومان", "100000")
     ]
-    for text, price in v2_plans:
-        kb.add(types.InlineKeyboardButton(f"{text} - {int(price):,.0f} تومان", callback_data=f"set_buy_V2ray_{price}"))
+    
+    # ساخت خودکار دکمه‌ها بر اساس لیست بالا
+    for text, price in v2_list:
+        kb.add(types.InlineKeyboardButton(text, callback_data=f"set_buy_V2ray_{price}"))
     
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_menu"))
-    await callback.message.edit_text("🛰 پلن‌های V2ray (نیم‌بها + اختصاصی) را انتخاب کنید:", reply_markup=kb)
+    
+    await callback.message.edit_text("🛰 لیست تعرفه‌های V2ray را انتخاب کنید:", reply_markup=kb)
+
 
 @dp.callback_query_handler(lambda c: c.data.startswith("biu_"))
 async def biubiu_plans(callback: types.CallbackQuery):
