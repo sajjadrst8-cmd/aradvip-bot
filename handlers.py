@@ -5,6 +5,7 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from loader import dp, bot, ADMIN_ID
 from database import get_user, users_col, add_invoice
 import markups as nav
+import config
 
 class BuyState(StatesGroup):
     entering_username = State()
