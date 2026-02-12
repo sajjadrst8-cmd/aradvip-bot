@@ -238,3 +238,37 @@ async def my_services_list(callback: types.CallbackQuery):
     """این هندلر لیست خریدهای تایید شده کاربر را نشان می‌دهد"""
     # در آینده می‌توانید اینجا کوئری بزنید به دیتابیس (Invoices) و لیست را نشان دهید
     await callback.answer("📦 در حال حاضر سرویس فعالی برای شما ثبت نشده است.", show_alert=True)
+
+# --- ۹. بخش شارژ کیف پول ---
+
+@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
+async def wallet_main_handler(callback: types.CallbackQuery):
+    text = (
+        "💳 **بخش شارژ کیف پول**\n\n"
+        "لطفاً مبلغ مورد نظر برای شارژ را انتخاب کنید یا از طریق پشتیبانی اقدام کنید.\n"
+        "پس از انتخاب، شماره کارت جهت واریز برای شما ارسال می‌شود."
+    )
+    await callback.message.edit_text(text, reply_markup=nav.wallet_charge_menu(), parse_mode="Markdown")
+    await callback.answer()
+
+@dp.callback_query_handler(lambda c: c.data.startswith("charge_"), state="*")
+async def process_wallet_charge(callback: types.CallbackQuery, state: FSMContext):
+    amount = int(callback.data.split("_")[1])
+    
+    # ذخیره مبلغ در استیت برای مرحله بعد
+    await state.update_data(charge_amount=amount)
+    await BuyState.waiting_for_receipt.set() # از همان استیت رسید قبلی استفاده می‌کنیم
+    
+    text = (
+        f"⏳ **درخواست شارژ: {amount:,} تومان**\n\n"
+        f"لطفاً مبلغ فوق را به شماره کارت زیر واریز نمایید:\n\n"
+        f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
+        f"👤 بنام: **{config.CARD_NAME}**\n\n"
+        f"📸 پس از واریز، **تصویر رسید** را همین‌جا ارسال کنید تا پس از تایید مدیریت، کیف پول شما شارژ شود."
+    )
+    
+    # دکمه انصراف
+    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("❌ انصراف و بازگشت", callback_data="my_account"))
+    
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await callback.answer()
