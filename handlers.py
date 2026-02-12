@@ -73,38 +73,14 @@ async def biubiu_plans(callback: types.CallbackQuery):
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu"))
     await callback.message.edit_text("🛒 پلن مورد نظر Biubiu را انتخاب کنید:", reply_markup=kb)
 
-# --- ۵. دریافت نام کاربری ---
-@dp.callback_query_handler(lambda c: c.data.startswith("plan_"), state="*")
-async def ask_username(callback: types.CallbackQuery, state: FSMContext):
-    parts = callback.data.split("_")
-    await state.update_data(s_type=parts[1], price=int(parts[2]), plan_name=parts[3])
-    await BuyState.entering_username.set()
-    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🎲 انتخاب نام تصادفی", callback_data="random_name"))
-    await callback.message.answer("👤 یک نام کاربری (انگلیسی) ارسال کنید یا دکمه زیر را بزنید:", reply_markup=kb)
+# --- ۵. دریافت نام کاربری و صدور فاکتور ---
 
-@dp.callback_query_handler(lambda c: c.data == "random_name", state=BuyState.entering_username)
-async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
-    # ۱. تولید نام تصادفی
-    r_name = generate_random_username()
-    
-    # ۲. ذخیره قطعی در حافظه موقت ربات
-    await state.update_data(username=r_name)
-    
-    # ۳. بستن Alert بالای صفحه و اطلاع‌رسانی
-    await callback.answer(f"✅ نام نهایی شد: {r_name}", show_alert=False)
-    
-    # ۴. حذف پیام قبلی (درخواست نام کاربری) برای تمیز شدن چت
-    await callback.message.delete()
-    
-    # ۵. صدا کردن مستقیم تابع صدور فاکتور
-    # اینجا r_name رو به عنوان یوزرنیم پاس می‌دیم
-    await proceed_to_invoice(callback.message, state, r_name)
+async def proceed_to_invoice(message: types.Message, state: FSMContext, username: str):
     data = await state.get_data()
     price = data.get('price')
     s_type = data.get('s_type')
     plan_name = data.get('plan_name')
 
-    # هوشمندسازی نام پلن برای نمایش
     display_plan = plan_name
     if s_type == "biu":
         parts = plan_name.split('-')
@@ -113,7 +89,6 @@ async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
     elif s_type == "v2ray":
         display_plan = f"V2ray_{plan_name}"
 
-    # ثبت در دیتابیس
     inv = await add_invoice(message.chat.id, {
         'price': price, 'plan': display_plan, 
         'type': s_type, 'username': username
@@ -127,17 +102,33 @@ async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
         f"💰 مبلغ: **{price:,} تومان**\n\n"
         f"👇 روش پرداخت را انتخاب کنید:"
     )
-    # ارسال فاکتور نهایی
-    await message.answer(text, reply_markup=nav.payment_methods(inv['inv_id']), parse_mode="Markdown")
+    await bot.send_message(message.chat.id, text, reply_markup=nav.payment_methods(inv['inv_id']), parse_mode="Markdown")
 
-# حالا هندلر تایپ دستی را هم به تابع بالا وصل می‌کنیم:
+@dp.callback_query_handler(lambda c: c.data.startswith("plan_"), state="*")
+async def ask_username(callback: types.CallbackQuery, state: FSMContext):
+    parts = callback.data.split("_")
+    await state.update_data(s_type=parts[1], price=int(parts[2]), plan_name=parts[3])
+    await BuyState.entering_username.set()
+    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🎲 انتخاب نام تصادفی", callback_data="random_name"))
+    await callback.message.answer("👤 یک نام کاربری (انگلیسی) ارسال کنید یا دکمه زیر را بزنید:", reply_markup=kb)
+
+@dp.callback_query_handler(lambda c: c.data == "random_name", state=BuyState.entering_username)
+async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
+    r_name = generate_random_username()
+    await state.update_data(username=r_name)
+    await callback.answer(f"✅ نام نهایی شد: {r_name}")
+    await callback.message.delete()
+    await proceed_to_invoice(callback.message, state, r_name)
+
 @dp.message_handler(state=BuyState.entering_username)
 async def handle_manual_username(message: types.Message, state: FSMContext):
     username = message.text.strip().lower()
+    if not username.replace("_", "").isalnum():
+        return await message.answer("❌ نام کاربری فقط باید شامل حروف انگلیسی و عدد باشد.")
     await state.update_data(username=username)
     await proceed_to_invoice(message, state, username)
 
-# --- ۶. فرآیند پرداخت ---
+# --- ۶. فرآیند پرداخت و رسید ---
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_card_"), state="*")
 async def card_payment(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -160,7 +151,7 @@ async def handle_receipt(message: types.Message, state: FSMContext):
         types.InlineKeyboardButton("❌ رد", callback_data=f"admin_no_{message.from_user.id}_0")
     )
     await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, 
-                         caption=f"💰 رسید جدید\n👤 کاربر: `{message.from_user.id}`\n💵 مبلغ: {data['price']:,}\n📦 پلن: {data.get('plan_name')}", 
+                         caption=f"💰 رسید جدید\n👤 کاربر: `{message.from_user.id}`\n💵 مبلغ: {data['price']:,}\n📦 پلن: {data.get('plan_name')}\n👤 یوزرنیم: {data.get('username')}", 
                          reply_markup=kb, parse_mode="Markdown")
     await state.finish()
 
@@ -170,7 +161,8 @@ async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
     if user.get('wallet', 0) >= data['price']:
         await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -data['price']}})
-        await callback.message.edit_text("✅ پرداخت موفق! سفارش شما ارسال شد.")
+        await callback.message.edit_text("✅ پرداخت موفق! سفارش شما برای مدیریت ارسال شد.")
+        await bot.send_message(ADMIN_ID, f"🚀 خرید با کیف پول\n👤 کاربر: `{callback.from_user.id}`\n💰 مبلغ: {data['price']}")
         await state.finish()
     else:
         await callback.answer("❌ موجودی کافی نیست!", show_alert=True)
