@@ -74,7 +74,6 @@ async def biubiu_plans(callback: types.CallbackQuery):
     await callback.message.edit_text("🛒 پلن مورد نظر Biubiu را انتخاب کنید:", reply_markup=kb)
 
 # --- ۵. دریافت نام کاربری و صدور فاکتور ---
-
 async def proceed_to_invoice(message: types.Message, state: FSMContext, username: str):
     data = await state.get_data()
     price = data.get('price')
@@ -85,7 +84,7 @@ async def proceed_to_invoice(message: types.Message, state: FSMContext, username
     if s_type == "biu":
         parts = plan_name.split('-')
         users = "1u" if "1" in parts[0] else "2u"
-        display_plan = f"BiuBiu_{parts[1].lower()}{users}"
+        display_plan = f"BiuBiu_{parts[1].lower() if len(parts)>1 else ''}{users}"
     elif s_type == "v2ray":
         display_plan = f"V2ray_{plan_name}"
 
@@ -146,90 +145,41 @@ async def card_payment(callback: types.CallbackQuery, state: FSMContext):
 async def handle_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
     await message.answer("✅ رسید دریافت شد. منتظر تایید مدیریت بمانید.")
-    
-    # اصلاح بخش کپشن برای جلوگیری از خطای Markdown
-    username = str(data.get('username', 'نامشخص')).replace("_", "\\_") # خنثی کردن کاراکتر زیرخط
-    
     kb = types.InlineKeyboardMarkup().add(
         types.InlineKeyboardButton("✅ تایید", callback_data=f"admin_ok_{message.from_user.id}_{data['price']}"),
         types.InlineKeyboardButton("❌ رد", callback_data=f"admin_no_{message.from_user.id}_0")
     )
+    safe_username = str(data.get('username', 'نامشخص')).replace("_", "\\_")
+    caption = (f"💰 رسید جدید\n👤 کاربر: `{message.from_user.id}`\n💵 مبلغ: {data['price']:,}\n"
+               f"📦 پلن: {data.get('plan_name')}\n👤 یوزرنیم: `{safe_username}`")
     
-    caption_text = (
-        f"💰 **رسید جدید**\n\n"
-        f"👤 کاربر: `{message.from_user.id}`\n"
-        f"💵 مبلغ: {data['price']:,} تومان\n"
-        f"📦 پلن: {data.get('plan_name')}\n"
-        f"👤 یوزرنیم: `{username}`"
-    )
-    
-    try:
-        await bot.send_photo(
-            ADMIN_ID, 
-            message.photo[-1].file_id, 
-            caption=caption_text, 
-            reply_markup=kb, 
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        # اگر باز هم خطا داد، بدون مارک‌داون بفرست که ربات کرش نکنه
-        await bot.send_photo(
-            ADMIN_ID, 
-            message.photo[-1].file_id, 
-            caption=caption_text.replace("*", "").replace("`", ""), 
-            reply_markup=kb
-        )
-        
+    await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption, reply_markup=kb, parse_mode="Markdown")
     await state.finish()
+
+@dp.callback_query_handler(lambda c: c.data.startswith("pay_wallet_"), state="*")
+async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
+    user = await users_col.find_one({"user_id": callback.from_user.id})
+    data = await state.get_data()
+    price = data.get('price', 0)
+    
+    if user.get('wallet', 0) >= price:
+        await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
+        await callback.message.edit_text("✅ پرداخت موفق! سفارش شما برای مدیریت ارسال شد.")
+        await bot.send_message(ADMIN_ID, f"🚀 خرید با کیف پول\n👤 کاربر: `{callback.from_user.id}`\n💰 مبلغ: {price:,}")
+        await state.finish()
     else:
         await callback.answer("❌ موجودی کافی نیست!", show_alert=True)
 
-# --- ۷. بخش مدیریت (تایید/رد رسید) ---
-
+# --- ۷. هندلر ادمین ---
 @dp.callback_query_handler(lambda c: c.data.startswith("admin_"), state="*")
-async def admin_decision_handler(callback: types.CallbackQuery):
-    # فرمت دیتا: admin_ok_USERID_PRICE یا admin_no_USERID_0
+async def admin_decision(callback: types.CallbackQuery):
     parts = callback.data.split("_")
-    action = parts[1]
-    user_id = int(parts[2])
-    price = int(parts[3])
-
+    action, user_id, price = parts[1], int(parts[2]), int(parts[3])
+    
     if action == "ok":
-        # ۱. اطلاع‌رسانی به کاربر
-        try:
-            success_text = (
-                "✅ **رسید شما توسط مدیریت تایید شد!**\n\n"
-                "سفارش شما در حال آماده‌سازی است و به زودی ارسال می‌شود.\n"
-                "از اعتماد شما سپاسگزاریم. 🙏"
-            )
-            await bot.send_message(user_id, success_text, parse_mode="Markdown")
-            
-            # ۲. بروزرسانی پیام ادمین (برای اینکه دکمه‌ها غیب شوند)
-            await callback.message.edit_caption(
-                caption=callback.message.caption + "\n\n✅ **تایید و ارسال شد.**",
-                reply_markup=None # حذف دکمه‌ها
-            )
-            await callback.answer("تایید شد و به کاربر اطلاع داده شد.", show_alert=True)
-            
-        except Exception as e:
-            await callback.answer(f"خطا در اطلاع‌رسانی به کاربر: {e}", show_alert=True)
-
-    elif action == "no":
-        # ۱. اطلاع‌رسانی به کاربر
-        try:
-            fail_text = (
-                "❌ **متأسفانه رسید شما توسط مدیریت رد شد.**\n\n"
-                "علت احتمالی: تصویر ناخوانا، مبلغ اشتباه یا عدم واریز.\n"
-                "لطفاً در صورت بروز مشکل با پشتیبانی در ارتباط باشید."
-            )
-            await bot.send_message(user_id, fail_text, parse_mode="Markdown")
-            
-            # ۲. بروزرسانی پیام ادمین
-            await callback.message.edit_caption(
-                caption=callback.message.caption + "\n\n❌ **رد شد.**",
-                reply_markup=None
-            )
-            await callback.answer("رسید رد شد.", show_alert=True)
-            
-        except Exception as e:
-            await callback.answer(f"خطا: {e}", show_alert=True)
+        await bot.send_message(user_id, "✅ رسید شما تایید شد. اکانت شما بزودی ارسال میشود.")
+        await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ تایید شد.", reply_markup=None)
+    else:
+        await bot.send_message(user_id, "❌ رسید شما رد شد. در صورت لزوم به پشتیبانی پیام دهید.")
+        await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ رد شد.", reply_markup=None)
+    await callback.answer()
