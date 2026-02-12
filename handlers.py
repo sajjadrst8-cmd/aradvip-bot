@@ -101,25 +101,52 @@ async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer(f"نام انتخاب شد: {r_name}")
 
 
-@dp.message_handler(state=BuyState.entering_username)
+@@dp.message_handler(state=BuyState.entering_username)
 async def create_invoice(message: types.Message, state: FSMContext):
     username = message.text.strip().lower()
     data = await state.get_data()
-    inv = await add_invoice(message.from_user.id, {'price': data['price'], 'plan': data['plan_name'], 'type': data['s_type'], 'username': username})
     
+    price = data['price']
+    s_type = data['s_type'] # نوع سرویس (v2ray یا biu)
+    plan_name = data['plan_name'] # نام پلنی که قبلاً ذخیره کردیم
+    
+    # --- منطق هوشمند سازی نام پلن برای گزارشات ---
+    display_plan = plan_name
+    if s_type == "biu":
+        # تبدیل کدها به فرمت مورد نظر شما
+        # مثلاً B1-1M تبدیل میشه به BiuBiu_1m1u (1 ماهه 1 کاربره)
+        # B2-6M تبدیل میشه به BiuBiu_6m2u (6 ماهه 2 کاربره)
+        parts = plan_name.split('-') # B1 و 1M رو جدا میکنه
+        users = "1u" if "1" in parts[0] else "2u"
+        months = parts[1].lower()
+        display_plan = f"BiuBiu_{months}{users}"
+    elif s_type == "v2ray":
+        display_plan = f"V2ray_{plan_name}"
+
+    # حالا این نام جدید رو در دیتابیس ذخیره می‌کنیم
+    inv = await add_invoice(message.from_user.id, {
+        'price': price, 
+        'plan': display_plan, 
+        'type': s_type, 
+        'username': username
+    })
+    
+    # متن فاکتور برای کاربر
     text = (
         f"🧾 **فاکتور پرداخت**\n\n"
-        f"🔹 نوع سرویس: {data['s_type'].upper()}\n"
-        f"📦 پلن: {data['plan_name']}\n"
+        f"🔹 سرویس: {s_type.upper()}\n"
+        f"📦 پلن: `{display_plan}`\n"
         f"👤 نام کاربری: `{username}`\n"
-        f"💰 مبلغ قابل پرداخت: **{data['price']:,} تومان**\n\n"
+        f"💰 مبلغ: **{price:,} تومان**\n\n"
         f"لطفاً روش پرداخت را انتخاب کنید:"
     )
+    
     kb = types.InlineKeyboardMarkup(row_width=2).add(
         types.InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv['inv_id']}"),
         types.InlineKeyboardButton("💰 پرداخت با کیف پول", callback_data=f"pay_wallet_{inv['inv_id']}")
     )
     await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+
 
 # --- ۵. پرداخت کارت به کارت (کپی آسان) ---
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_card_"), state="*")
