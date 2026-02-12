@@ -183,3 +183,53 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     await state.finish()
     else:
         await callback.answer("❌ موجودی کافی نیست!", show_alert=True)
+
+# --- ۷. بخش مدیریت (تایید/رد رسید) ---
+
+@dp.callback_query_handler(lambda c: c.data.startswith("admin_"), state="*")
+async def admin_decision_handler(callback: types.CallbackQuery):
+    # فرمت دیتا: admin_ok_USERID_PRICE یا admin_no_USERID_0
+    parts = callback.data.split("_")
+    action = parts[1]
+    user_id = int(parts[2])
+    price = int(parts[3])
+
+    if action == "ok":
+        # ۱. اطلاع‌رسانی به کاربر
+        try:
+            success_text = (
+                "✅ **رسید شما توسط مدیریت تایید شد!**\n\n"
+                "سفارش شما در حال آماده‌سازی است و به زودی ارسال می‌شود.\n"
+                "از اعتماد شما سپاسگزاریم. 🙏"
+            )
+            await bot.send_message(user_id, success_text, parse_mode="Markdown")
+            
+            # ۲. بروزرسانی پیام ادمین (برای اینکه دکمه‌ها غیب شوند)
+            await callback.message.edit_caption(
+                caption=callback.message.caption + "\n\n✅ **تایید و ارسال شد.**",
+                reply_markup=None # حذف دکمه‌ها
+            )
+            await callback.answer("تایید شد و به کاربر اطلاع داده شد.", show_alert=True)
+            
+        except Exception as e:
+            await callback.answer(f"خطا در اطلاع‌رسانی به کاربر: {e}", show_alert=True)
+
+    elif action == "no":
+        # ۱. اطلاع‌رسانی به کاربر
+        try:
+            fail_text = (
+                "❌ **متأسفانه رسید شما توسط مدیریت رد شد.**\n\n"
+                "علت احتمالی: تصویر ناخوانا، مبلغ اشتباه یا عدم واریز.\n"
+                "لطفاً در صورت بروز مشکل با پشتیبانی در ارتباط باشید."
+            )
+            await bot.send_message(user_id, fail_text, parse_mode="Markdown")
+            
+            # ۲. بروزرسانی پیام ادمین
+            await callback.message.edit_caption(
+                caption=callback.message.caption + "\n\n❌ **رد شد.**",
+                reply_markup=None
+            )
+            await callback.answer("رسید رد شد.", show_alert=True)
+            
+        except Exception as e:
+            await callback.answer(f"خطا: {e}", show_alert=True)
