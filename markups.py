@@ -15,14 +15,14 @@ def main_menu():
 def buy_menu():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("V2ray(تانل نیم بها+کاربرنامحدود)", callback_data="buy_v2ray"),
-           InlineKeyboardButton("Biubiu VPN", callback_data="buy_biubiu"),
+           InlineKeyboardButton("Biubiu VPN", callback_data="buy_biubiu"), # به هندلر انتخاب تعداد کاربر میره
            InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
     return kb
 
-def payment_methods(price):
+# متد پرداخت باید inv_id بگیره تا بدونیم کدوم فاکتوره
+def payment_methods(inv_id):
     kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("💳 کارت به کارت", callback_data="pay_card"),
-           InlineKeyboardButton("💰 کیف پول", callback_data="pay_wallet"),
-           InlineKeyboardButton("🎟 اعمال کد تخفیف", callback_data="apply_off"),
+    kb.add(InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv_id}"),
+           InlineKeyboardButton("💰 کیف پول", callback_data=f"pay_wallet_{inv_id}"),
            InlineKeyboardButton("❌ لغو فاکتور", callback_data="main_menu"))
     return kb
