@@ -31,26 +31,24 @@ async def start(message: types.Message, state: FSMContext):
     await message.answer("✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
 
 # --- ۲. منوی اصلی و حساب کاربری ---
-@dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
-async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
-    await state.finish()
-    await callback.message.edit_text("✨ به منوی اصلی خوش آمدید:", reply_markup=nav.main_menu())
-
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
 async def my_account_handler(callback: types.CallbackQuery):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     wallet = user.get('wallet', 0)
+    ref_count = user.get('ref_count', 0)
     
-    # متنی که کاربر می‌بیند (می‌توانی آیدی عددی را هم اضافه کنی)
+    # ساخت لینک دعوت اختصاصی
+    bot_info = await bot.get_me()
+    invite_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
+    
     text = (
         f"👤 **جزئیات حساب کاربری**\n\n"
-        f"🆔 آیدی عددی: `{callback.from_user.id}`\n"
-        f"💰 موجودی کیف پول: **{wallet:,} تومان**\n"
-        f"🎁 تعداد زیرمجموعه: **{user.get('ref_count', 0)} نفر**\n\n"
-        f"یکی از گزینه‌های زیر را انتخاب کنید:"
+        f"💰 موجودی: **{wallet:,} تومان**\n"
+        f"🎁 تعداد زیرمجموعه: **{ref_count} نفر**\n\n"
+        f"🔗 **لینک دعوت شما:**\n`{invite_link}`\n\n"
+        f"💡 با دعوت دوستان خود، هدیه دریافت کنید!"
     )
     
-    # فراخوانی کیبورد اصلاح شده
     await callback.message.edit_text(text, reply_markup=nav.account_menu(), parse_mode="Markdown")
 
 @dp.callback_query_handler(lambda c: c.data == "buy_new", state="*")
