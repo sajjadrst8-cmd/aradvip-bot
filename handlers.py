@@ -30,20 +30,38 @@ async def start(message: types.Message, state: FSMContext):
     
     await message.answer("✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
 
-# --- ۲. منوی اصلی و حساب کاربری ---
+# --- هندلر بازگشت به منوی اصلی (این همان تیکه‌ای است که پرسیدی کجا بگذارم) ---
+@dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
+async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await callback.message.edit_text(
+        "✨ به منوی اصلی خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
+        reply_markup=nav.main_menu()
+    )
+    await callback.answer()
+
+# --- هندلر حساب کاربری ---
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
 async def my_account_handler(callback: types.CallbackQuery):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     wallet = user.get('wallet', 0)
     ref_count = user.get('ref_count', 0)
     
-    # ساخت لینک دعوت اختصاصی
-    @dp.callback_query_handler(lambda c: c.data == "referral_section", state="*")
+    text = (
+        f"👤 **جزئیات حساب کاربری**\n\n"
+        f"💰 موجودی کیف پول: **{wallet:,} تومان**\n"
+        f"👥 تعداد زیرمجموعه: **{ref_count} نفر**\n\n"
+        f"یکی از گزینه‌های زیر را انتخاب کنید:"
+    )
+    # اینجا از کیبورد جدید که در markups ساختی استفاده می‌کنیم
+    await callback.message.edit_text(text, reply_markup=nav.account_menu(), parse_mode="Markdown")
+    await callback.answer()
+
+# --- هندلر بخش زیرمجموعه‌گیری (کدی که فرستاده بودی) ---
+@dp.callback_query_handler(lambda c: c.data == "referral_section", state="*")
 async def referral_handler(callback: types.CallbackQuery):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     bot_info = await bot.get_me()
-    
-    # ساخت لینک دعوت
     invite_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
     
     text = (
@@ -51,14 +69,13 @@ async def referral_handler(callback: types.CallbackQuery):
         f"👥 تعداد زیرمجموعه‌های شما: **{user.get('ref_count', 0)} نفر**\n"
         f"🎁 پاداش شما: **۱۰٪ از هر خرید زیرمجموعه**\n\n"
         f"🔗 **لینک دعوت اختصاصی شما:**\n"
-        f"`{invite_link}`\n\n"
-        f"کافیست لینک بالا را برای دوستان خود بفرستید. با اولین خرید آن‌ها، کیف پول شما شارژ می‌شود!"
+        f"`{invite_link}`"
     )
-    
-    # دکمه بازگشت به پنل کاربری
-    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت به حساب کاربری", callback_data="my_account"))
-    
+    kb = types.InlineKeyboardMarkup().add(
+        types.InlineKeyboardButton("🔙 بازگشت به حساب کاربری", callback_data="my_account")
+    )
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await callback.answer()
 
 @dp.callback_query_handler(lambda c: c.data == "buy_new", state="*")
 async def buy_new_handler(callback: types.CallbackQuery):
