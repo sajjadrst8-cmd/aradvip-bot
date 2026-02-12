@@ -10,7 +10,8 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
 # --- تنظیمات اصلی (توکن و ایدی ادمین را اینجا بزنید) ---
-API_TOKEN = '8584319269:AAHT2fLxyC303MCl-jndJVSO7F27YO0hIAA'
+import os
+API_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 863961919  
 CARD_NUMBER = "5057851560122222"
 CARD_NAME = "سجاد رستگاران"
