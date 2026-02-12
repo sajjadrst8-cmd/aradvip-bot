@@ -8,17 +8,23 @@ users_col = db["users"]
 invoices_col = db["invoices"]
 plans_col = db["plans"]
 
-async def get_user(user_id, referrer=None):
+async def get_user(user_id, referrer_id=None):
     user = await users_col.find_one({"user_id": user_id})
     if not user:
-        user = {
+        new_user = {
             "user_id": user_id,
             "wallet": 0,
-            "referred_by": int(referrer) if (referrer and str(referrer).isdigit() and int(referrer) != user_id) else None,
-            "join_date": datetime.datetime.now().strftime("%Y/%m/%d - %H:%M"),
-            "test_used": {"v2ray": False, "biubiu": False}
+            "ref_count": 0,
+            "referred_by": referrer_id, # آیدی کسی که این کاربر را دعوت کرده
+            "reg_date": datetime.datetime.now()
         }
-        await users_col.insert_one(user)
+        await users_col.insert_one(new_user)
+        
+        # اگر معرف داشت، تعداد زیرمجموعه‌های معرف را یکی زیاد کن
+        if referrer_id:
+            await users_col.update_one({"user_id": int(referrer_id)}, {"$inc": {"ref_count": 1}})
+            
+        return new_user
     return user
 
 async def add_invoice(user_id, data):
