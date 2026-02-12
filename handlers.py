@@ -87,19 +87,18 @@ async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
     # ۱. تولید نام تصادفی
     r_name = generate_random_username()
     
-    # ۲. ذخیره نام در وضعیت (State)
+    # ۲. ذخیره قطعی در حافظه موقت ربات
     await state.update_data(username=r_name)
     
-    # ۳. تایید به کاربر
-    await callback.answer(f"نام انتخاب شد: {r_name}")
+    # ۳. بستن Alert بالای صفحه و اطلاع‌رسانی
+    await callback.answer(f"✅ نام نهایی شد: {r_name}", show_alert=False)
     
-    # ۴. استخراج داده‌ها برای صدور فاکتور
-    data = await state.get_data()
+    # ۴. حذف پیام قبلی (درخواست نام کاربری) برای تمیز شدن چت
+    await callback.message.delete()
     
-    # ۵. فراخوانی مستقیم منطق صدور فاکتور (بدون نیاز به ارسال پیام مجدد توسط کاربر)
-    # توجه: اینجا به جای فرستادن پیام جدید، از همان تابع اصلاح شده پایین استفاده می‌کنیم
-    # این تابع منطق مشترک صدور فاکتور است
-async def proceed_to_invoice(message: types.Message, state: FSMContext, username: str):
+    # ۵. صدا کردن مستقیم تابع صدور فاکتور
+    # اینجا r_name رو به عنوان یوزرنیم پاس می‌دیم
+    await proceed_to_invoice(callback.message, state, r_name)
     data = await state.get_data()
     price = data.get('price')
     s_type = data.get('s_type')
@@ -153,7 +152,7 @@ async def card_payment(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer(text, parse_mode="Markdown")
 
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
-async def handle_receipt(message: types.Message, state: FSMContext):
+async d handle_receipt(message: tyefpes.Message, state: FSMContext):
     data = await state.get_data()
     await message.answer("✅ رسید دریافت شد. منتظر تایید مدیریت بمانید.")
     kb = types.InlineKeyboardMarkup().add(
