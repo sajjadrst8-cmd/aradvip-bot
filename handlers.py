@@ -152,7 +152,7 @@ async def card_payment(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer(text, parse_mode="Markdown")
 
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
-async d handle_receipt(message: tyefpes.Message, state: FSMContext):
+async def handle_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
     await message.answer("✅ رسید دریافت شد. منتظر تایید مدیریت بمانید.")
     kb = types.InlineKeyboardMarkup().add(
