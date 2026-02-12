@@ -48,23 +48,21 @@ async def v2ray_list(callback: types.CallbackQuery):
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
     await callback.message.edit_text("🛒 لیست پلن‌های V2ray:", reply_markup=kb)
 
+# --- بخش Biubiu VPN (اصلاح شده برای خواندن از کانفیگ) ---
 @dp.callback_query_handler(lambda c: c.data.startswith("biu_"))
 async def biubiu_plans(callback: types.CallbackQuery):
     mode = callback.data.split("_")[1]
     kb = types.InlineKeyboardMarkup(row_width=1)
-    if mode == "1":
-        plans = [("1 ماهه - 100,000 تومان", 100000, "B1-1M"), ("2 ماهه - 200,000 تومان", 200000, "B1-2M"), ("3 ماهه - 300,000 تومان", 300000, "B1-3M")]
-    else:
-        plans = [
-            ("1 ماهه - 300,000 تومان", 300000, "B2-1M"), 
-            ("3 ماهه - 600,000 تومان", 600000, "B2-3M"), 
-            ("6 ماهه - 1,100,000 تومان", 1100000, "B2-6M"), 
-            ("12 ماهه - 1,800,000 تومان", 1800000, "B2-12M")
-        ]
+    
+    # انتخاب لیست مناسب از فایل کانفیگ بر اساس انتخاب کاربر (1 کاربره یا 2 کاربره)
+    plans = config.BIUBIU_1U_PLANS if mode == "1" else config.BIUBIU_2U_PLANS
+    
     for text, price, name in plans:
         kb.add(types.InlineKeyboardButton(text, callback_data=f"plan_biu_{price}_{name}"))
+        
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu"))
     await callback.message.edit_text("🛒 پلن مورد نظر Biubiu را انتخاب کنید:", reply_markup=kb)
+
 
 # --- دریافت نام کاربری با دکمه نام تصادفی ---
 @dp.callback_query_handler(lambda c: c.data.startswith("plan_"), state="*")
