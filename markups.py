@@ -27,3 +27,12 @@ def payment_methods(inv_id): # حتما inv_id بگیرد
         InlineKeyboardButton("❌ لغو و بازگشت", callback_data="main_menu")
     )
     return kb
+def account_menu():
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    # دکمه‌های جدید برای کاربردی شدن حساب کاربری
+    kb.add(
+        types.InlineKeyboardButton("💳 شارژ کیف پول", callback_data="charge_wallet"),
+        types.InlineKeyboardButton("🚀 سرویس‌های من", callback_data="my_services")
+    )
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"))
+    return kb
