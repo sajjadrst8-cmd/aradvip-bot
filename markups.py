@@ -6,7 +6,7 @@ def main_menu():
     kb.add(InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test"))
     kb.row(InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"), 
            InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invs"))
-    kb.add(InlineKeyboardButton("👤 حساب کاربری", callback_data="account"))
+    kb.add(InlineKeyboardButton("👤 حساب کاربری", callback_data="my_account"))
     kb.row(InlineKeyboardButton("📞 پشتیبانی", callback_data="support"), 
            InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/AradVIPTeaching"))
     kb.add(InlineKeyboardButton("📊 وضعیت سرویس‌ها", url="http://v2inj.galexystore.ir:3001/"))
