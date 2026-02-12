@@ -42,5 +42,6 @@ async def account(callback: types.CallbackQuery):
 async def back_main(callback: types.CallbackQuery):
     await callback.message.edit_text("لطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
 
+import handlers
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
