@@ -226,3 +226,30 @@ async def check_promo(message: types.Message, state: FSMContext):
     else:
         await message.answer("❌ کد تخفیف نامعتبر است.")
     await state.finish()
+
+# --- پنل مدیریت اختصاصی ---
+
+@dp.message_handler(commands=['admin'], user_id=ADMIN_ID)
+async def admin_panel(message: types.Message):
+    text = (
+        "🛠 **پنل مدیریت آراد وی‌آی‌پی**\n\n"
+        "برای تغییر موجودی کاربر از دستور زیر استفاده کنید:\n"
+        "`/setwallet [آیدی‌عددی] [مبلغ]`\n\n"
+        "مثال برای شارژ 50 هزار تومان:\n"
+        "`/setwallet 12345678 50000`"
+    )
+    await message.answer(text, parse_mode="Markdown")
+
+@dp.message_handler(commands=['setwallet'], user_id=ADMIN_ID)
+async def set_wallet_manual(message: types.Message):
+    args = message.get_args().split()
+    if len(args) == 2:
+        target_id, amount = args[0], args[1]
+        try:
+            await users_col.update_one({"user_id": int(target_id)}, {"$set": {"wallet": float(amount)}})
+            await message.answer(f"✅ موجودی کاربر {target_id} با موفقیت به {amount} تغییر یافت.")
+            await bot.send_message(target_id, f"💰 موجودی حساب شما توسط مدیریت به {amount} تومان تغییر یافت.")
+        except Exception as e:
+            await message.answer(f"❌ خطایی رخ داد: {e}")
+    else:
+        await message.answer("⚠️ فرمت اشتباه! مثال: `/setwallet 1234567 50000`")
