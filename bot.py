@@ -249,62 +249,32 @@ async def pay_info(callback: types.CallbackQuery, state: FSMContext):
 @dp.message_handler(content_types=['photo'], state=BotState.waiting_for_receipt)
 async def handle_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    is_charge = data['p_type'] == "CHARGE"
-    amt = data['charge_amt'] if is_charge else int(data['p_price'])
-    final = amt - (amt * (OFF_PERCENT/100)) if data['off_applied'] else amt
+    p_type = data.get('p_type', 'CHARGE') 
     
-    await message.answer("✅ رسید برای ادمین ارسال شد. منتظر تایید باشید.", reply_markup=main_menu_inline())
+    # مبلغی که کاربر باید واریز می‌کرد (بعد از تخفیف)
+    amt_to_pay = data.get('charge_amt') if p_type == "CHARGE" else int(data.get('p_price', 0))
+    if data.get('off_applied'):
+        amt_to_pay = amt_to_pay - (amt_to_pay * (OFF_PERCENT/100))
     
+    # مبلغی که باید به اعتبار کاربر اضافه شود (مبلغ اصلی بدون تخفیف)
+    amt_to_add = data.get('charge_amt') if p_type == "CHARGE" else int(data.get('p_price', 0))
+    
+    await message.answer("✅ رسید دریافت شد. منتظر تایید ادمین بمانید.")
+    
+    # ارسال هر دو مبلغ در کال‌بک: ادمین تایید می‌کند که مبلغ تخفیف‌خورده واریز شده، اما مبلغ اصلی شارژ می‌شود
     kb = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("✅ تایید", callback_data=f"adm_ok_{message.from_user.id}_{final}_{data['p_type']}"),
+        types.InlineKeyboardButton("✅ تایید و شارژ مبلغ اصلی", callback_data=f"adm_ok_{message.from_user.id}_{amt_to_add}_{p_type}"),
         types.InlineKeyboardButton("❌ رد", callback_data=f"adm_no_{message.from_user.id}")
     )
     
     caption = (f"🔔 رسید جدید\n👤 کاربر: {message.from_user.id}\n"
-               f"💰 مبلغ: {final:,.0f}\n📂 نوع: {data['p_type']}\n"
-               f"🔑 یوزرنیم درخواستی: {data.get('username', '-')}")
+               f"💰 مبلغ واریزی (با تخفیف): {int(amt_to_pay):,.0f} تومان\n"
+               f"💎 مبلغ شارژ حساب (بدون تخفیف): {int(amt_to_add):,.0f} تومان\n"
+               f"📂 نوع: {p_type}\n🔑 یوزرنیم: {data.get('username', '-')}")
+    
     await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption, reply_markup=kb)
     await state.finish()
 
-# --- تایید نهایی توسط ادمین ---
-@dp.callback_query_handler(lambda c: c.data.startswith("adm_"), state="*")
-async def admin_verify(callback: types.CallbackQuery):
-    # تجزیه دیتای دکمه
-    parts = callback.data.split("_")
-    action = parts[1]     # ok یا no
-    user_id = parts[2]    # آیدی کاربر
-    
-    if action == "ok":
-        # بخش تایید (که گفتی کار میکنه)
-        amount = parts[3]
-        p_type = parts[4] if len(parts) > 4 else "CHARGE"
-        
-        if p_type == "CHARGE":
-            conn = sqlite3.connect('arad_data.db')
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET wallet = wallet + ? WHERE user_id=?", (float(amount), user_id))
-            conn.commit()
-            conn.close()
-            await bot.send_message(user_id, f"✅ فاکتور شارژ شما تایید شد و مبلغ {float(amount):,.0f} تومان به کیف پول شما اضافه شد.")
-        else:
-            await bot.send_message(user_id, f"✅ پرداخت شما تایید شد. سرویس شما به زودی توسط ادمین ارسال می‌شود.")
-        
-        await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ توسط ادمین تایید شد.")
-        await callback.answer("تایید شد")
-
-    elif action == "no":
-        # بخش رد کردن (که مشکل داشت)
-        try:
-            await bot.send_message(user_id, "❌ متأسفانه رسید واریزی شما توسط ادمین رد شد.\nدر صورت اطمینان از واریز، با پشتیبانی در ارتباط باشید.")
-            await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ توسط ادمین رد شد.")
-            await callback.answer("رسید رد شد")
-        except Exception as e:
-            logging.error(f"Error in declining: {e}")
-            await callback.answer("خطا در ارسال پیام به کاربر")
-
-@dp.callback_query_handler(lambda c: c.data == "back_to_main", state="*")
-async def back_main(callback: types.CallbackQuery, state: FSMContext):
-    await state.finish()
     await callback.message.edit_text("🌹 منوی اصلی:", reply_markup=main_menu_inline())
 
 if __name__ == '__main__':
