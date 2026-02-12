@@ -20,7 +20,14 @@ def generate_random_username():
 @dp.message_handler(commands=['start'], state="*")
 async def start(message: types.Message, state: FSMContext):
     await state.finish()
-    await get_user(message.from_user.id)
+    
+    # بررسی اینکه آیا کاربر با لینک دعوت آمده است
+    args = message.get_args()
+    referrer_id = args if args.isdigit() else None
+    
+    # ثبت کاربر (اگر جدید باشد) با معرف
+    user = await get_user(message.from_user.id, referrer_id)
+    
     await message.answer("✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
 
 # --- ۲. منوی اصلی و حساب کاربری ---
