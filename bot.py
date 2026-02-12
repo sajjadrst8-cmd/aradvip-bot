@@ -269,23 +269,38 @@ async def handle_receipt(message: types.Message, state: FSMContext):
 # --- تایید نهایی توسط ادمین ---
 @dp.callback_query_handler(lambda c: c.data.startswith("adm_"), state="*")
 async def admin_verify(callback: types.CallbackQuery):
+    # تجزیه دیتای دکمه
     parts = callback.data.split("_")
-    action, user_id, amount, p_type = parts[1], parts[2], parts[3], parts[4] if len(parts)>4 else "CHARGE"
+    action = parts[1]     # ok یا no
+    user_id = parts[2]    # آیدی کاربر
     
     if action == "ok":
+        # بخش تایید (که گفتی کار میکنه)
+        amount = parts[3]
+        p_type = parts[4] if len(parts) > 4 else "CHARGE"
+        
         if p_type == "CHARGE":
             conn = sqlite3.connect('arad_data.db')
             cursor = conn.cursor()
             cursor.execute("UPDATE users SET wallet = wallet + ? WHERE user_id=?", (float(amount), user_id))
             conn.commit()
             conn.close()
-            await bot.send_message(user_id, f"✅ فاکتور شما تایید شد و مبلغ {float(amount):,.0f} تومان به کیف پول شما اضافه شد.")
+            await bot.send_message(user_id, f"✅ فاکتور شارژ شما تایید شد و مبلغ {float(amount):,.0f} تومان به کیف پول شما اضافه شد.")
         else:
-            await bot.send_message(user_id, f"✅ پرداخت شما تایید شد. اشتراک شما تا دقایقی دیگر ارسال می‌شود.")
-        await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ تایید گردید.")
-    else:
-        await bot.send_message(user_id, "❌ متاسفانه رسید ارسالی شما رد شد. لطفاً با پشتیبانی در ارتباط باشید.")
-        await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ رد شد.")
+            await bot.send_message(user_id, f"✅ پرداخت شما تایید شد. سرویس شما به زودی توسط ادمین ارسال می‌شود.")
+        
+        await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ توسط ادمین تایید شد.")
+        await callback.answer("تایید شد")
+
+    elif action == "no":
+        # بخش رد کردن (که مشکل داشت)
+        try:
+            await bot.send_message(user_id, "❌ متأسفانه رسید واریزی شما توسط ادمین رد شد.\nدر صورت اطمینان از واریز، با پشتیبانی در ارتباط باشید.")
+            await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ توسط ادمین رد شد.")
+            await callback.answer("رسید رد شد")
+        except Exception as e:
+            logging.error(f"Error in declining: {e}")
+            await callback.answer("خطا در ارسال پیام به کاربر")
 
 @dp.callback_query_handler(lambda c: c.data == "back_to_main", state="*")
 async def back_main(callback: types.CallbackQuery, state: FSMContext):
