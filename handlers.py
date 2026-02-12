@@ -177,19 +177,38 @@ async def card_payment(callback: types.CallbackQuery, state: FSMContext):
     )
     await callback.message.answer(text, parse_mode="Markdown")
 
+# این تابع رو پیدا کن و کل محتویاتش رو با این نسخه جدید عوض کن:
+
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
 async def handle_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    await message.answer("✅ رسید دریافت شد. منتظر تایید مدیریت بمانید.")
-    kb = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("✅ تایید", callback_data=f"admin_ok_{message.from_user.id}_{data['price']}"),
-        types.InlineKeyboardButton("❌ رد", callback_data=f"admin_no_{message.from_user.id}_0")
-    )
-    safe_username = str(data.get('username', 'نامشخص')).replace("_", "\\_")
-    caption = (f"💰 رسید جدید\n👤 کاربر: `{message.from_user.id}`\n💵 مبلغ: {data['price']:,}\n"
-               f"📦 پلن: {data.get('plan_name')}\n👤 یوزرنیم: `{safe_username}`")
     
+    # --- بخش هوشمندسازی اینجاست ---
+    # چک می‌کند اگر 'charge_amount' وجود داشت یعنی کاربر دارد کیف پول شارژ می‌کند
+    # اگر نبود، یعنی دارد مستقیم یک پلن (مثل V2ray) می‌خرد
+    amount = data.get('charge_amount') or data.get('price', 0)
+    plan_info = data.get('plan_name', 'شارژ کیف پول')
+    # -----------------------------
+
+    await message.answer("✅ رسید شما دریافت شد و برای مدیریت ارسال گردید. لطفاً تا تایید ادمین منتظر بمانید.")
+    
+    # دکمه‌های ادمین با مبلغ داینامیک
+    kb = types.InlineKeyboardMarkup().add(
+        types.InlineKeyboardButton("✅ تایید و واریز", callback_data=f"admin_ok_{message.from_user.id}_{amount}"),
+        types.InlineKeyboardButton("❌ رد رسید", callback_data=f"admin_no_{message.from_user.id}_0")
+    )
+    
+    caption = (
+        f"💰 **رسید جدید جهت بررسی**\n\n"
+        f"👤 کاربر: `{message.from_user.id}`\n"
+        f"💵 مبلغ: **{amount:,} تومان**\n"
+        f"📝 بابت: `{plan_info}`"
+    )
+    
+    # ارسال برای ادمین
     await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption, reply_markup=kb, parse_mode="Markdown")
+    
+    # پاک کردن حافظه موقت (State)
     await state.finish()
 
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_wallet_"), state="*")
