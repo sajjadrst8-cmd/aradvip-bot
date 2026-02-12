@@ -1,5 +1,5 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
+from aiogram import types
 def main_menu():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new"))
@@ -29,7 +29,6 @@ def payment_methods(inv_id): # حتما inv_id بگیرد
     return kb
 def account_menu():
     kb = types.InlineKeyboardMarkup(row_width=2)
-    # دکمه‌های جدید برای کاربردی شدن حساب کاربری
     kb.add(
         types.InlineKeyboardButton("💳 شارژ کیف پول", callback_data="charge_wallet"),
         types.InlineKeyboardButton("🚀 سرویس‌های من", callback_data="my_services")
