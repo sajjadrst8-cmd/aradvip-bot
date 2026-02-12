@@ -42,20 +42,11 @@ async def my_account(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "buy_v2ray")
 async def v2ray_list(callback: types.CallbackQuery):
     kb = types.InlineKeyboardMarkup(row_width=1)
-    plans = [
-        ("5GB - 100,000 تومان", 100000, "5GB"),
-        ("10GB - 150,000 تومان", 150000, "10GB"),
-        ("20GB - 200,000 تومان", 200000, "20GB"),
-        ("30GB - 250,000 تومان", 250000, "30GB"),
-        ("50GB - 350,000 تومان", 350000, "50GB"),
-        ("100GB - 500,000 تومان", 500000, "100GB"),
-        ("200GB - 800,000 تومان", 800000, "200GB"),
-        ("300GB - 1,100,000 تومان", 1100000, "300GB"),
-    ]
-    for text, price, name in plans:
+    # حالا مستقیم از کانفیگ می‌خونیم
+    for text, price, name in config.V2RAY_PLANS:
         kb.add(types.InlineKeyboardButton(text, callback_data=f"plan_v2ray_{price}_{name}"))
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
-    await callback.message.edit_text("🛒 لیست پلن‌های V2ray (زمان نامحدود):", reply_markup=kb)
+    await callback.message.edit_text("🛒 لیست پلن‌های V2ray:", reply_markup=kb)
 
 @dp.callback_query_handler(lambda c: c.data.startswith("biu_"))
 async def biubiu_plans(callback: types.CallbackQuery):
