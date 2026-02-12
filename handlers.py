@@ -36,7 +36,14 @@ async def my_account(callback: types.CallbackQuery):
         f"🎁 تعداد زیرمجموعه: {user.get('ref_count', 0)} نفر\n\n"
         f"وضعیت حساب: فعال ✅"
     )
-    await callback.message.edit_text(text, reply_markup=nav.main_menu(), parse_mode="Markdown")
+    @dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
+async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish() # لغو هر عملیاتی که کاربر داشت انجام میداد
+    await callback.message.edit_text("✨ به منوی اصلی خوش آمدید:", reply_markup=nav.main_menu())
+
+@dp.callback_query_handler(lambda c: c.data == "buy_new")
+async def buy_new_handler(callback: types.CallbackQuery):
+    await callback.message.edit_text("لطفاً نوع سرویس مورد نظر خود را انتخاب کنید:", reply_markup=nav.buy_menu())
 
 # --- ۳. تعرفه‌ها (فارسی و مرتب شده از راست به چپ) ---
 @dp.callback_query_handler(lambda c: c.data == "buy_v2ray")
