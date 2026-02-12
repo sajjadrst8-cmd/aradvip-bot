@@ -84,16 +84,22 @@ async def ask_username(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.callback_query_handler(lambda c: c.data == "random_name", state=BuyState.entering_username)
 async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
+    # ۱. تولید نام تصادفی
     r_name = generate_random_username()
+    
+    # ۲. ذخیره نام در وضعیت (State)
     await state.update_data(username=r_name)
-    msg = types.Message(text=r_name, from_user=callback.from_user, chat=callback.message.chat)
-    await create_invoice(msg, state)
+    
+    # ۳. تایید به کاربر
     await callback.answer(f"نام انتخاب شد: {r_name}")
-
-@dp.message_handler(state=BuyState.entering_username)
-async def create_invoice(message: types.Message, state: FSMContext):
-    username = message.text.strip().lower()
+    
+    # ۴. استخراج داده‌ها برای صدور فاکتور
     data = await state.get_data()
+    
+    # ۵. فراخوانی مستقیم منطق صدور فاکتور (بدون نیاز به ارسال پیام مجدد توسط کاربر)
+    # توجه: اینجا به جای فرستادن پیام جدید، از همان تابع اصلاح شده پایین استفاده می‌کنیم
+    await proceed_to_invoice(callback.message, state, r_name)
+
     
     # هوشمندسازی نام پلن
     display_plan = data['plan_name']
