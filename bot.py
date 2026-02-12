@@ -108,7 +108,7 @@ async def v2ray_plans(callback: types.CallbackQuery):
     kb = types.InlineKeyboardMarkup(row_width=1)
     # لیست کامل حجم‌های V2ray
     v2_plans = [
-        ("V2ray 5 گیگ (زمان نامحدود)", "50000"),
+        ("5 گیگ بدون محدودیت کاربر 50 هزار تومن"),
         ("V2ray 10 گیگ (زمان نامحدود)", "80000"),
         ("V2ray 20 گیگ (زمان نامحدود)", "120000"),
         ("V2ray 30 گیگ (زمان نامحدود)", "150000"),
