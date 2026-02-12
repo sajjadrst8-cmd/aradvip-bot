@@ -33,5 +33,9 @@ def account_menu():
         types.InlineKeyboardButton("💳 شارژ کیف پول", callback_data="charge_wallet"),
         types.InlineKeyboardButton("🚀 سرویس‌های من", callback_data="my_services")
     )
-    kb.add(types.InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"))
+    # اضافه کردن دکمه زیرمجموعه‌گیری
+    kb.add(types.InlineKeyboardButton("💰 زیرمجموعه‌گیری (کسب درآمد)", callback_data="referral_section"))
+    
+    # اصلاح دکمه بازگشت (مطمئن شوید دیتای آن با هندلر یکی است)
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
     return kb
