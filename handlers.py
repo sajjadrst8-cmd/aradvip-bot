@@ -118,28 +118,8 @@ async def create_invoice(message: types.Message, state: FSMContext):
         display_plan = f"V2ray_{plan_name}"
 
     # حالا این نام جدید رو در دیتابیس ذخیره می‌کنیم
-    inv = await add_invoice(message.from_user.id, {
-        'price': price, 
-        'plan': display_plan, 
-        'type': s_type, 
-        'username': username
-    })
-    
-    # متن فاکتور برای کاربر
-    text = (
-        f"🧾 **فاکتور پرداخت**\n\n"
-        f"🔹 سرویس: {s_type.upper()}\n"
-        f"📦 پلن: `{display_plan}`\n"
-        f"👤 نام کاربری: `{username}`\n"
-        f"💰 مبلغ: **{price:,} تومان**\n\n"
-        f"لطفاً روش پرداخت را انتخاب کنید:"
-    )
-    
-    kb = types.InlineKeyboardMarkup(row_width=2).add(
-        types.InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv['inv_id']}"),
-        types.InlineKeyboardButton("💰 پرداخت با کیف پول", callback_data=f"pay_wallet_{inv['inv_id']}")
-    )
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    # به جای تعریف دستی کیبورد، از تابعی که در مارک‌آپ ساختیم استفاده کن
+await message.answer(text, reply_markup=nav.payment_methods(inv['inv_id']), parse_mode="Markdown")
 
 
 # --- ۵. پرداخت کارت به کارت (کپی آسان) ---
