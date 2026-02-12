@@ -209,3 +209,20 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     )
     await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"💰 رسید جدید\nکاربر: {message.from_user.id}\nمبلغ: {data.get('price', 0)}", reply_markup=kb)
     await state.finish()
+
+# --- بخش کد تخفیف ---
+@dp.callback_query_handler(lambda c: c.data == "apply_off")
+async def ask_promo(callback: types.CallbackQuery):
+    await BuyState.entering_offcode.set()
+    await callback.message.answer("🎟 لطفا کد تخفیف خود را وارد کنید:")
+
+@dp.message_handler(state=BuyState.entering_offcode)
+async def check_promo(message: types.Message, state: FSMContext):
+    promo = message.text
+    # به عنوان مثال یک کد ثابت: Arad2024
+    if promo == "Arad2024":
+        await message.answer("✅ کد تخفیف معتبر بود! 20% تخفیف اعمال شد.")
+        # اینجا منطق کسر مبلغ را اضافه کن
+    else:
+        await message.answer("❌ کد تخفیف نامعتبر است.")
+    await state.finish()
