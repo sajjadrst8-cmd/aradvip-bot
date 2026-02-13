@@ -32,6 +32,11 @@ def account_menu():
     kb.add(
         types.InlineKeyboardButton("💳 شارژ کیف پول", callback_data="charge_wallet"),
         types.InlineKeyboardButton("🚀 سرویس‌های من", callback_data="my_services")
+        try:
+        await callback.message.edit_text(text, reply_markup=nav.wallet_charge_menu(), parse_mode="Markdown")
+    except Exception as e:
+        print(f"Error in wallet menu: {e}")
+        await callback.message.answer("خطا در بارگذاری منوی شارژ. لطفا دوباره تلاش کنید.")
     )
     # اضافه کردن دکمه زیرمجموعه‌گیری
     kb.add(types.InlineKeyboardButton("💰 زیرمجموعه‌گیری (کسب درآمد)", callback_data="referral_section"))
