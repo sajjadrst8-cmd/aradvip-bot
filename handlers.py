@@ -28,7 +28,11 @@ async def start(message: types.Message, state: FSMContext):
     # ثبت کاربر (اگر جدید باشد) با معرف
     user = await get_user(message.from_user.id, referrer_id)
     
-    await message.answer("✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
+    # حذف کیبورد بزرگ قبلی و ارسال منوی شیشه‌ای جدید
+    await message.answer("✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
+                         reply_markup=types.ReplyKeyboardRemove()) # ابتدا کیبورد بزرگ را حذف می‌کند
+    
+    await message.answer("منوی اصلی:", reply_markup=nav.main_menu())
 
 # --- هندلر بازگشت به منوی اصلی (این همان تیکه‌ای است که پرسیدی کجا بگذارم) ---
 @dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
