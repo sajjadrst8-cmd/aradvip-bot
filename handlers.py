@@ -333,24 +333,20 @@ async def process_fixed_charge(callback: types.CallbackQuery, state: FSMContext)
 # الف) وقتی کاربر روی دکمه شارژ کلیک می‌کند
 @dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
 async def wallet_main_handler(callback: types.CallbackQuery):
-    await callback.answer("در حال باز کردن بخش شارژ...") 
+    text = "💳 **بخش شارژ کیف پول**\n\nلطفاً مبلغ مورد نظر برای شارژ را انتخاب کنید:"
     
-    text = (
-        "💳 **بخش شارژ کیف پول**\n\n"
-        "لطفاً مبلغ مورد نظر را انتخاب کنید یا مبلغ دلخواه را بزنید:"
-    )
-    
+    # مشکل اینجا بود: شما احتمالا nav.account_menu() میدادی که تکراری بود
+    # باید حتما nav.wallet_charge_menu() رو بدیم که دکمه های مبالغ ظاهر بشن
     try:
-        # اینجا از تابعی که در مرحله ۱ ساختیم استفاده می‌کنیم
         await callback.message.edit_text(
             text, 
-            reply_markup=nav.wallet_charge_menu(), 
+            reply_markup=nav.wallet_charge_menu(), # حتما چک کن این تابع باشه
             parse_mode="Markdown"
         )
+        await callback.answer()
     except Exception as e:
-        # اگر دکمه‌ها نیومدن، اینجا توی کنسول بهت می‌گه چرا
-        print(f"Error in showing wallet menu: {e}")
-        await callback.message.answer("خطا در نمایش منوی مبالغ. لطفاً فایل markups را چک کنید.")
+        print(f"Error: {e}")
+        await callback.answer("⚠️ خطا در بارگذاری منو")
 
 # وقتی کاربر روی دکمه "مبلغ دلخواه" میزنه
 @dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
