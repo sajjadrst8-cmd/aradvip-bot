@@ -342,24 +342,35 @@ async def wallet_main_handler(callback: types.CallbackQuery):
     await callback.answer()
 
 # ب) وقتی کاربر روی "مبلغ دلخواه" می‌زند
-@dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
-async def custom_amount_click(callback: types.CallbackQuery):
-    await BuyState.entering_custom_amount.set() # فعال کردن وضعیت دریافت عدد
-    await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر را به **تومان** تایپ و ارسال کنید:")
+# الف) دکمه شارژ کیف پول
+@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
+async def wallet_main_handler(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "💳 **بخش شارژ کیف پول**\n\nلطفاً یک مبلغ را انتخاب کنید یا روی دکمه مبلغ دلخواه بزنید تا بتونید عدد تایپ کنید:", 
+        reply_markup=nav.wallet_charge_menu(), # حتما این باشه
+        parse_mode="Markdown"
+    )
     await callback.answer()
 
-# ج) دریافت عددی که کاربر تایپ کرده (مثل عکسی که فرستادی)
+# ب) وقتی کاربر روی دکمه "مبلغ دلخواه" کلیک میکنه
+@dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
+async def custom_amount_step(callback: types.CallbackQuery):
+    await BuyState.entering_custom_amount.set() # این حالت رو فعال میکنه تا عدد رو بفهمه
+    await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر رو به **تومان** تایپ و ارسال کنید:")
+    await callback.answer()
+
+# ج) دریافت عددی که کاربر تایپ میکنه (مثل عکست که ۴۰۰۰۰۰ زدی)
 @dp.message_handler(state=BuyState.entering_custom_amount)
-async def get_custom_amount_text(message: types.Message, state: FSMContext):
+async def process_custom_amount(message: types.Message, state: FSMContext):
     if message.text.isdigit():
         amount = int(message.text)
         await state.update_data(charge_amount=amount)
-        await BuyState.waiting_for_receipt.set() # حالا منتظر رسید می‌مانیم
+        await BuyState.waiting_for_receipt.set()
         
         await message.answer(
-            f"✅ مبلغ {amount:,} تومان ثبت شد.\n\n"
-            f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
-            "📸 پس از واریز، عکس رسید را بفرستید."
+            f"✅ مبلغ {amount:,} تومان ثبت شد.\n\n💳 شماره کارت: `{config.CARD_NUMBER}`\n📸 رسید رو بفرستید.",
+            parse_mode="Markdown"
         )
     else:
-        await message.answer("⚠️ لطفاً فقط عدد وارد کنید (مثلاً 400000)")
+        await message.answer("⚠️ لطفاً فقط عدد انگلیسی وارد کنید!")
+
