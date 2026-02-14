@@ -307,3 +307,51 @@ async def back_to_main_handler(callback: types.CallbackQuery, state: FSMContext)
         
     # ۳. ساعتِ شنیِ روی دکمه رو حذف می‌کنه
     await callback.answer()
+
+# ۱. منوی انتخاب نوع تست
+@dp.callback_query_handler(lambda c: c.data == "get_test", state="*")
+async def get_test_handler(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "🎁 **بخش دریافت اشتراک تست**\nلطفاً نوع اشتراک تست خود را انتخاب کنید:",
+        reply_markup=nav.test_subs_menu(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+# ۲. بخش V2ray تست (رایگان با محدودیت)
+@dp.callback_query_handler(lambda c: c.data == "test_v2ray", state="*")
+async def test_v2ray_info(callback: types.CallbackQuery):
+    text = (
+        "⚠️ **قوانین اشتراک تست V2ray**\n\n"
+        "هر کاربر در هر ماه فقط یک بار می‌تواند از اشتراک تست استفاده کند.\n"
+        "آیا مایل به دریافت هستید؟"
+    )
+    await callback.message.edit_text(text, reply_markup=nav.v2ray_test_confirm(), parse_mode="Markdown")
+    await callback.answer()
+
+@dp.callback_query_handler(lambda c: c.data == "confirm_v2ray_test", state="*")
+async def confirm_v2ray_test(callback: types.CallbackQuery):
+    # ارسال پیام به کاربر
+    await callback.message.edit_text(
+        "✅ درخواست شما در دست بررسی است و نتیجه به زودی به شما اعلام خواهد شد.",
+        reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
+    )
+    
+    # اطلاع‌رسانی به ادمین
+    await bot.send_message(
+        ADMIN_ID, 
+        f"🆘 **درخواست اشتراک تست V2ray**\n👤 کاربر: `{callback.from_user.id}`\nنام: {callback.from_user.full_name}"
+    )
+    await callback.answer()
+
+# ۳. بخش Biubiu تست (پولی - متصل به چرخه خرید)
+@dp.callback_query_handler(lambda c: c.data == "test_biubiu", state="*")
+async def test_biubiu_info(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "🛒 **اشتراک تست Biubiu**\nلطفاً پلن تست را انتخاب کنید:",
+        reply_markup=nav.biubiu_test_menu()
+    )
+    await callback.answer()
+
+# نکته: دکمه Biubiu به دلیل اینکه با "plan_" شروع می‌شود، 
+# خودکار وارد هندلر ask_username و پروسه پرداخت کارت/کیف پول که قبلاً نوشتیم می‌شود.
