@@ -71,6 +71,8 @@ def payment_methods(inv_id): # حتما inv_id بگیرد
     )
     return kb
 
+# در فایل markups.py
+
 def wallet_charge_menu():
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
@@ -79,7 +81,8 @@ def wallet_charge_menu():
         InlineKeyboardButton("200,000", callback_data="charge_200000"),
         InlineKeyboardButton("500,000", callback_data="charge_500000")
     )
-    # اضافه کردن دکمه مبلغ دلخواه
+    # این دکمه حیاتیه برای اینکه تایپ کردن عدد کار کنه
     kb.add(InlineKeyboardButton("➕ مبلغ دلخواه (تایپ مبلغ)", callback_data="charge_custom"))
     kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="my_account"))
     return kb
+
