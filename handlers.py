@@ -348,24 +348,25 @@ async def wallet_main_handler(callback: types.CallbackQuery):
         await callback.answer("⚠️ خطا در نمایش منو")
 
 # وقتی کاربر روی دکمه "مبلغ دلخواه" میزنه
+# وقتی کاربر روی دکمه مبلغ دلخواه میزنه
 @dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
 async def custom_charge_start(callback: types.CallbackQuery):
-    await BuyState.entering_custom_amount.set() # حالت تایپ کردن فعال می‌شه
+    await BuyState.entering_custom_amount.set() # وضعیت تایپ عدد فعال میشه
     await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:")
     await callback.answer()
 
-# وقتی کاربر عدد رو تایپ می‌کنه
+# وقتی کاربر عدد رو میفرسته
 @dp.message_handler(state=BuyState.entering_custom_amount)
 async def get_custom_amount(message: types.Message, state: FSMContext):
     if message.text.isdigit():
         amount = int(message.text)
         await state.update_data(charge_amount=amount)
-        await BuyState.waiting_for_receipt.set() # می‌ره برای مرحله رسید
+        await BuyState.waiting_for_receipt.set() # میره برای دریافت عکس رسید
         
         await message.answer(
-            f"✅ مبلغ ثبت شد: {amount:,} تومان\n\n"
+            f"✅ مبلغ درخواستی: {amount:,} تومان\n\n"
             f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
-            "📸 لطفاً فیش واریزی را ارسال کنید."
+            "📸 لطفاً عکس رسید را ارسال کنید."
         )
     else:
-        await message.answer("⚠️ لطفاً فقط عدد وارد کنید!")
+        await message.answer("⚠️ لطفاً فقط عدد انگلیسی وارد کنید!")
