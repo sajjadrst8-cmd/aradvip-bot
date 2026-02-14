@@ -333,44 +333,44 @@ async def process_fixed_charge(callback: types.CallbackQuery, state: FSMContext)
 # الف) وقتی کاربر روی دکمه شارژ کلیک می‌کند
 @dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
 async def wallet_main_handler(callback: types.CallbackQuery):
-    # اینجا حتماً باید کیبوردی که در مرحله ۱ ساختیم را فراخوانی کنیم
-    await callback.message.edit_text(
-        "💳 **بخش شارژ کیف پول**\n\nلطفاً یک مبلغ را انتخاب کنید یا روی دکمه مبلغ دلخواه بزنید:", 
-        reply_markup=nav.wallet_charge_menu(), 
-        parse_mode="Markdown"
+    await callback.answer("در حال باز کردن بخش شارژ...") 
+    
+    text = (
+        "💳 **بخش شارژ کیف پول**\n\n"
+        "لطفاً مبلغ مورد نظر را انتخاب کنید یا مبلغ دلخواه را بزنید:"
     )
-    await callback.answer()
+    
+    try:
+        # اینجا از تابعی که در مرحله ۱ ساختیم استفاده می‌کنیم
+        await callback.message.edit_text(
+            text, 
+            reply_markup=nav.wallet_charge_menu(), 
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        # اگر دکمه‌ها نیومدن، اینجا توی کنسول بهت می‌گه چرا
+        print(f"Error in showing wallet menu: {e}")
+        await callback.message.answer("خطا در نمایش منوی مبالغ. لطفاً فایل markups را چک کنید.")
 
-# ب) وقتی کاربر روی "مبلغ دلخواه" می‌زند
-# الف) دکمه شارژ کیف پول
-@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
-async def wallet_main_handler(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "💳 **بخش شارژ کیف پول**\n\nلطفاً یک مبلغ را انتخاب کنید یا روی دکمه مبلغ دلخواه بزنید تا بتونید عدد تایپ کنید:", 
-        reply_markup=nav.wallet_charge_menu(), # حتما این باشه
-        parse_mode="Markdown"
-    )
-    await callback.answer()
-
-# ب) وقتی کاربر روی دکمه "مبلغ دلخواه" کلیک میکنه
+# وقتی کاربر روی دکمه "مبلغ دلخواه" میزنه
 @dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
-async def custom_amount_step(callback: types.CallbackQuery):
-    await BuyState.entering_custom_amount.set() # این حالت رو فعال میکنه تا عدد رو بفهمه
-    await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر رو به **تومان** تایپ و ارسال کنید:")
+async def custom_charge_start(callback: types.CallbackQuery):
+    await BuyState.entering_custom_amount.set() # حالت تایپ کردن فعال می‌شه
+    await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:")
     await callback.answer()
 
-# ج) دریافت عددی که کاربر تایپ میکنه (مثل عکست که ۴۰۰۰۰۰ زدی)
+# وقتی کاربر عدد رو تایپ می‌کنه
 @dp.message_handler(state=BuyState.entering_custom_amount)
-async def process_custom_amount(message: types.Message, state: FSMContext):
+async def get_custom_amount(message: types.Message, state: FSMContext):
     if message.text.isdigit():
         amount = int(message.text)
         await state.update_data(charge_amount=amount)
-        await BuyState.waiting_for_receipt.set()
+        await BuyState.waiting_for_receipt.set() # می‌ره برای مرحله رسید
         
         await message.answer(
-            f"✅ مبلغ {amount:,} تومان ثبت شد.\n\n💳 شماره کارت: `{config.CARD_NUMBER}`\n📸 رسید رو بفرستید.",
-            parse_mode="Markdown"
+            f"✅ مبلغ ثبت شد: {amount:,} تومان\n\n"
+            f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
+            "📸 لطفاً فیش واریزی را ارسال کنید."
         )
     else:
-        await message.answer("⚠️ لطفاً فقط عدد انگلیسی وارد کنید!")
-
+        await message.answer("⚠️ لطفاً فقط عدد وارد کنید!")
