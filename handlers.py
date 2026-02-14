@@ -330,29 +330,36 @@ async def process_fixed_charge(callback: types.CallbackQuery, state: FSMContext)
     await callback.answer()
 
 # ۲. وقتی کاربر دکمه "مبلغ دلخواه" را می‌زند
-@dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
-async def custom_amount_request(callback: types.CallbackQuery):
-    await BuyState.entering_custom_amount.set()
-    await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:\n(مثلاً: 150000)")
+# الف) وقتی کاربر روی دکمه شارژ کلیک می‌کند
+@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
+async def wallet_main_handler(callback: types.CallbackQuery):
+    # اینجا حتماً باید کیبوردی که در مرحله ۱ ساختیم را فراخوانی کنیم
+    await callback.message.edit_text(
+        "💳 **بخش شارژ کیف پول**\n\nلطفاً یک مبلغ را انتخاب کنید یا روی دکمه مبلغ دلخواه بزنید:", 
+        reply_markup=nav.wallet_charge_menu(), 
+        parse_mode="Markdown"
+    )
     await callback.answer()
 
-# ۳. دریافت عددی که کاربر تایپ می‌کند (برای مبلغ دلخواه)
-@dp.message_handler(state=BuyState.entering_custom_amount)
-async def process_custom_amount(message: types.Message, state: FSMContext):
-    if not message.text.isdigit():
-        return await message.answer("⚠️ لطفاً فقط عدد انگلیسی وارد کنید (بدون حروف یا علامت)!")
-    
-    amount = int(message.text)
-    if amount < 1000:
-        return await message.answer("⚠️ حداقل مبلغ شارژ 1,000 تومان می‌باشد.")
+# ب) وقتی کاربر روی "مبلغ دلخواه" می‌زند
+@dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
+async def custom_amount_click(callback: types.CallbackQuery):
+    await BuyState.entering_custom_amount.set() # فعال کردن وضعیت دریافت عدد
+    await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر را به **تومان** تایپ و ارسال کنید:")
+    await callback.answer()
 
-    await state.update_data(charge_amount=amount)
-    await BuyState.waiting_for_receipt.set()
-    
-    text = (
-        f"✅ مبلغ درخواستی شما: **{amount:,} تومان**\n\n"
-        f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
-        f"👤 بنام: **{config.CARD_NAME}**\n\n"
-        f"📸 فیش واریزی را ارسال کنید."
-    )
-    await message.answer(text, parse_mode="Markdown")
+# ج) دریافت عددی که کاربر تایپ کرده (مثل عکسی که فرستادی)
+@dp.message_handler(state=BuyState.entering_custom_amount)
+async def get_custom_amount_text(message: types.Message, state: FSMContext):
+    if message.text.isdigit():
+        amount = int(message.text)
+        await state.update_data(charge_amount=amount)
+        await BuyState.waiting_for_receipt.set() # حالا منتظر رسید می‌مانیم
+        
+        await message.answer(
+            f"✅ مبلغ {amount:,} تومان ثبت شد.\n\n"
+            f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
+            "📸 پس از واریز، عکس رسید را بفرستید."
+        )
+    else:
+        await message.answer("⚠️ لطفاً فقط عدد وارد کنید (مثلاً 400000)")
