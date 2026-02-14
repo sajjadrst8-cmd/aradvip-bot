@@ -259,12 +259,29 @@ async def admin_decision(callback: types.CallbackQuery):
     action, user_id, price = parts[1], int(parts[2]), int(parts[3])
     
     if action == "ok":
-        # اگر شارژ کیف پول بود، اینجا میتونی موجودی دیتابیس رو هم همزمان زیاد کنی
-        await bot.send_message(user_id, f"✅ رسید شما تایید شد. مبلغ {price:,} تومان به حساب شما منظور گردید.")
-        await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ تایید شد.", reply_markup=None)
+        # --- بخش حیاتی: اضافه کردن موجودی به دیتابیس ---
+        await users_col.update_one(
+            {"user_id": user_id}, 
+            {"$inc": {"wallet": price}} # مبلغ رو به کیف پول کاربر اضافه میکنه
+        )
+        
+        # اطلاع‌رسانی به کاربر
+        await bot.send_message(
+            user_id, 
+            f"✅ رسید شما تایید شد!\n💰 مبلغ **{price:,} تومان** به کیف پول شما اضافه شد."
+        )
+        
+        # تغییر متن پیام برای ادمین که بدونه انجام شده
+        await callback.message.edit_caption(
+            caption=callback.message.caption + f"\n\n✅ تایید و مبلغ {price:,} واریز شد.", 
+            reply_markup=None
+        )
     else:
         await bot.send_message(user_id, "❌ رسید شما رد شد. در صورت لزوم به پشتیبانی پیام دهید.")
-        await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ رد شد.", reply_markup=None)
+        await callback.message.edit_caption(
+            caption=callback.message.caption + "\n\n❌ رد شد.", 
+            reply_markup=None
+        )
     await callback.answer()
 
 @dp.callback_query_handler(lambda c: c.data == "my_services", state="*")
