@@ -11,6 +11,7 @@ class BuyState(StatesGroup):
     entering_username = State()
     waiting_for_receipt = State()
     entering_custom_amount = State()
+    waiting_for_test_choice = State() # اضافه شد
 
 def generate_random_username():
     chars = string.ascii_lowercase + string.digits
