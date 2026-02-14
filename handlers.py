@@ -266,34 +266,44 @@ async def my_services_list(callback: types.CallbackQuery):
 
 # --- ۹. بخش شارژ کیف پول ---
 
+# وقتی کاربر روی دکمه شارژ کیف پول می‌زند
 @dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
 async def wallet_main_handler(callback: types.CallbackQuery):
-    text = (
-        "💳 **بخش شارژ کیف پول**\n\n"
-        "لطفاً مبلغ مورد نظر برای شارژ را انتخاب کنید یا از طریق پشتیبانی اقدام کنید.\n"
-        "پس از انتخاب، شماره کارت جهت واریز برای شما ارسال می‌شود."
+    text = "💳 **بخش شارژ کیف پول**\n\nلطفاً یک مبلغ را انتخاب کنید یا مبلغ دلخواه خود را وارد کنید:"
+    
+    # ساخت کیبورد مبالغ (اگر در markups نداری همینجا بسازیم)
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("50,000 تومان", callback_data="charge_50000"),
+        types.InlineKeyboardButton("100,000 تومان", callback_data="charge_100000"),
+        types.InlineKeyboardButton("200,000 تومان", callback_data="charge_200000")
     )
-    await callback.message.edit_text(text, reply_markup=nav.wallet_charge_menu(), parse_mode="Markdown")
-    await callback.answer()
-
-@dp.callback_query_handler(lambda c: c.data.startswith("charge_"), state="*")
-async def process_wallet_charge(callback: types.CallbackQuery, state: FSMContext):
-    amount = int(callback.data.split("_")[1])
-    
-    # ذخیره مبلغ در استیت برای مرحله بعد
-    await state.update_data(charge_amount=amount)
-    await BuyState.waiting_for_receipt.set() # از همان استیت رسید قبلی استفاده می‌کنیم
-    
-    text = (
-        f"⏳ **درخواست شارژ: {amount:,} تومان**\n\n"
-        f"لطفاً مبلغ فوق را به شماره کارت زیر واریز نمایید:\n\n"
-        f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
-        f"👤 بنام: **{config.CARD_NAME}**\n\n"
-        f"📸 پس از واریز، **تصویر رسید** را همین‌جا ارسال کنید تا پس از تایید مدیریت، کیف پول شما شارژ شود."
-    )
-    
-    # دکمه انصراف
-    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("❌ انصراف و بازگشت", callback_data="my_account"))
+    kb.add(types.InlineKeyboardButton("➕ وارد کردن مبلغ دلخواه", callback_data="charge_custom"))
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="my_account"))
     
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
     await callback.answer()
+
+# اگر کاربر "مبلغ دلخواه" را انتخاب کرد
+@dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
+async def custom_amount_request(callback: types.CallbackQuery):
+    await BuyState.entering_custom_amount.set()
+    await callback.message.edit_text("لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:\n(مثال: 150000)")
+    await callback.answer()
+
+# دریافت مبلغ دلخواه تایپ شده توسط کاربر
+@dp.message_handler(state=BuyState.entering_custom_amount)
+async def process_custom_amount(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        return await message.answer("⚠️ لطفاً فقط عدد وارد کنید!")
+    
+    amount = int(message.text)
+    await state.update_data(charge_amount=amount)
+    await BuyState.waiting_for_receipt.set()
+    
+    # نمایش اطلاعات پرداخت
+    text = (f"✅ مبلغ درخواستی: {amount:,} تومان\n\n"
+            f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
+            f"👤 بنام: {config.CARD_NAME}\n\n"
+            "پس از واریز، عکس رسید را اینجا ارسال کنید.")
+    await message.answer(text, parse_mode="Markdown")
