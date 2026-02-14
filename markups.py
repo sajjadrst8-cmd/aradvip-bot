@@ -85,3 +85,29 @@ def wallet_charge_menu():
     kb.add(InlineKeyboardButton("➕ وارد کردن مبلغ دلخواه", callback_data="charge_custom"))
     kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="my_account"))
     return kb
+def test_subs_menu():
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("V2ray (رایگان)", callback_data="test_v2ray"),
+        InlineKeyboardButton("Biubiu VPN", callback_data="test_biubiu"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")
+    )
+    return kb
+
+def v2ray_test_confirm():
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("✅ دریافت تست", callback_data="confirm_v2ray_test"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="get_test")
+    )
+    return kb
+
+def biubiu_test_menu():
+    kb = InlineKeyboardMarkup(row_width=1)
+    # طبق خواسته شما: ۱ روزه ۵۰ هزار تومان
+    kb.add(
+        InlineKeyboardButton("⏱ ۱ روزه نامحدود - ۵۰,۰۰۰ تومان", callback_data="plan_biu_50000_1DayTest"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="get_test")
+    )
+    return kb
+
