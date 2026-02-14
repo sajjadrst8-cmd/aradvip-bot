@@ -76,13 +76,12 @@ def payment_methods(inv_id): # حتما inv_id بگیرد
 def wallet_charge_menu():
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
-        InlineKeyboardButton("50,000", callback_data="charge_50000"),
-        InlineKeyboardButton("100,000", callback_data="charge_100000"),
-        InlineKeyboardButton("200,000", callback_data="charge_200000"),
-        InlineKeyboardButton("500,000", callback_data="charge_500000")
+        InlineKeyboardButton("50,000 تومان", callback_data="charge_50000"),
+        InlineKeyboardButton("100,000 تومان", callback_data="charge_100000"),
+        InlineKeyboardButton("200,000 تومان", callback_data="charge_200000"),
+        InlineKeyboardButton("500,000 تومان", callback_data="charge_500000")
     )
-    # این دکمه حیاتیه برای اینکه تایپ کردن عدد کار کنه
-    kb.add(InlineKeyboardButton("➕ مبلغ دلخواه (تایپ مبلغ)", callback_data="charge_custom"))
+    # دکمه مبلغ دلخواه که خیلی برات مهم بود
+    kb.add(InlineKeyboardButton("➕ وارد کردن مبلغ دلخواه", callback_data="charge_custom"))
     kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="my_account"))
     return kb
-
