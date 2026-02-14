@@ -10,8 +10,7 @@ import config
 class BuyState(StatesGroup):
     entering_username = State()
     waiting_for_receipt = State()
-    entering_custom_amount = State() # این خط را اضافه کن
-
+    entering_custom_amount = State()
 
 def generate_random_username():
     chars = string.ascii_lowercase + string.digits
@@ -23,27 +22,21 @@ def generate_random_username():
 async def start(message: types.Message, state: FSMContext):
     await state.finish()
     
-    # بررسی زیرمجموعه‌گیری
     args = message.get_args()
     referrer_id = args if args.isdigit() else None
-    user = await get_user(message.from_user.id, referrer_id)
+    await get_user(message.from_user.id, referrer_id)
     
-    # ارسال فقط یک پیام که هم دکمه‌های بزرگ را حذف می‌کند و هم منوی اصلی را می‌آورد
+    # ارسال دستور حذف کیبورد بزرگ به همراه منوی اصلی در یک پیام
+    # این کد دکمه‌های خرید اشتراک و ... که پایین صفحه چسبیده بودن رو پاک میکنه
     await message.answer(
         "✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
         reply_markup=nav.main_menu()
     )
-    
-    # برای اطمینان از حذف دکمه‌های بزرگ (ReplyKeyboard) در دفعات بعد:
-    # یک پیام خالی می‌فرستیم و بلافاصله دستور حذف را می‌دهیم
-    # اما چون نمی‌خواهیم دو منو دیده شود، بهترین راه این است که 
-    # منوی اصلی شما (main_menu) از نوع Inline باشد که هست.
 
-     
-
-# --- هندلر حساب کاربری ---
+# --- ۲. حساب کاربری و زیرمجموعه ---
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
-async def my_account_handler(callback: types.CallbackQuery):
+async def my_account_handler(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
     user = await users_col.find_one({"user_id": callback.from_user.id})
     wallet = user.get('wallet', 0)
     ref_count = user.get('ref_count', 0)
@@ -54,11 +47,9 @@ async def my_account_handler(callback: types.CallbackQuery):
         f"👥 تعداد زیرمجموعه: **{ref_count} نفر**\n\n"
         f"یکی از گزینه‌های زیر را انتخاب کنید:"
     )
-    # اینجا از کیبورد جدید که در markups ساختی استفاده می‌کنیم
     await callback.message.edit_text(text, reply_markup=nav.account_menu(), parse_mode="Markdown")
     await callback.answer()
 
-# --- هندلر بخش زیرمجموعه‌گیری (کدی که فرستاده بودی) ---
 @dp.callback_query_handler(lambda c: c.data == "referral_section", state="*")
 async def referral_handler(callback: types.CallbackQuery):
     user = await users_col.find_one({"user_id": callback.from_user.id})
@@ -78,11 +69,11 @@ async def referral_handler(callback: types.CallbackQuery):
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
     await callback.answer()
 
+# --- ۳. خرید سرویس جدید ---
 @dp.callback_query_handler(lambda c: c.data == "buy_new", state="*")
 async def buy_new_handler(callback: types.CallbackQuery):
     await callback.message.edit_text("لطفاً نوع سرویس مورد نظر خود را انتخاب کنید:", reply_markup=nav.buy_menu())
 
-# --- ۳. بخش V2ray ---
 @dp.callback_query_handler(lambda c: c.data == "buy_v2ray")
 async def v2ray_list(callback: types.CallbackQuery):
     kb = types.InlineKeyboardMarkup(row_width=1)
@@ -91,7 +82,6 @@ async def v2ray_list(callback: types.CallbackQuery):
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
     await callback.message.edit_text("🛒 لیست پلن‌های V2ray:", reply_markup=kb)
 
-# --- ۴. بخش Biubiu ---
 @dp.callback_query_handler(lambda c: c.data == "buy_biubiu")
 async def biubiu_user_choice(callback: types.CallbackQuery):
     kb = types.InlineKeyboardMarkup(row_width=2)
@@ -110,7 +100,7 @@ async def biubiu_plans(callback: types.CallbackQuery):
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu"))
     await callback.message.edit_text("🛒 پلن مورد نظر Biubiu را انتخاب کنید:", reply_markup=kb)
 
-# --- ۵. دریافت نام کاربری و صدور فاکتور ---
+# --- ۴. دریافت نام کاربری و صدور فاکتور ---
 async def proceed_to_invoice(message: types.Message, state: FSMContext, username: str):
     data = await state.get_data()
     price = data.get('price')
@@ -164,6 +154,54 @@ async def handle_manual_username(message: types.Message, state: FSMContext):
     await state.update_data(username=username)
     await proceed_to_invoice(message, state, username)
 
+# --- ۵. بخش شارژ کیف پول (اصلاح شده) ---
+@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
+async def wallet_main_handler(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    text = "💳 **بخش شارژ کیف پول**\n\nلطفاً یک مبلغ را انتخاب کنید یا مبلغ دلخواه خود را وارد کنید:"
+    try:
+        await callback.message.edit_text(text, reply_markup=nav.wallet_charge_menu(), parse_mode="Markdown")
+        await callback.answer()
+    except:
+        await callback.answer("خطا در لود منو")
+
+@dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
+async def custom_amount_request(callback: types.CallbackQuery):
+    await BuyState.entering_custom_amount.set()
+    await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:\n(مثال: 150000)")
+    await callback.answer()
+
+@dp.message_handler(state=BuyState.entering_custom_amount)
+async def process_custom_amount(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        return await message.answer("⚠️ لطفاً فقط عدد انگلیسی وارد کنید!")
+    
+    amount = int(message.text)
+    await state.update_data(charge_amount=amount)
+    await BuyState.waiting_for_receipt.set()
+    
+    text = (f"✅ مبلغ درخواستی: {amount:,} تومان\n\n"
+            f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
+            f"👤 بنام: {config.CARD_NAME}\n\n"
+            "📸 پس از واریز، عکس رسید را اینجا ارسال کنید.")
+    await message.answer(text, parse_mode="Markdown")
+
+@dp.callback_query_handler(lambda c: c.data.startswith("charge_") and c.data != "charge_custom", state="*")
+async def process_fixed_charge(callback: types.CallbackQuery, state: FSMContext):
+    amount = int(callback.data.split("_")[1])
+    await state.update_data(charge_amount=amount)
+    await BuyState.waiting_for_receipt.set()
+    
+    text = (
+        f"⏳ **درخواست شارژ: {amount:,} تومان**\n\n"
+        f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
+        f"👤 بنام: **{config.CARD_NAME}**\n\n"
+        f"📸 لطفاً پس از واریز، تصویر رسید را ارسال کنید."
+    )
+    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("❌ انصراف", callback_data="my_account"))
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await callback.answer()
+
 # --- ۶. فرآیند پرداخت و رسید ---
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_card_"), state="*")
 async def card_payment(callback: types.CallbackQuery, state: FSMContext):
@@ -171,29 +209,21 @@ async def card_payment(callback: types.CallbackQuery, state: FSMContext):
     await BuyState.waiting_for_receipt.set()
     text = (
         f"📌 **راهنمای واریز**\n\n"
-        f"مبلغ **{data['price']:,} تومان** را واریز کنید:\n"
+        f"مبلغ **{data.get('price', 0):,} تومان** را واریز کنید:\n"
         f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
         f"👤 بنام: **{config.CARD_NAME}**\n\n"
         f"📸 رسید را اینجا ارسال کنید."
     )
     await callback.message.answer(text, parse_mode="Markdown")
 
-# این تابع رو پیدا کن و کل محتویاتش رو با این نسخه جدید عوض کن:
-
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
 async def handle_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    
-    # --- بخش هوشمندسازی اینجاست ---
-    # چک می‌کند اگر 'charge_amount' وجود داشت یعنی کاربر دارد کیف پول شارژ می‌کند
-    # اگر نبود، یعنی دارد مستقیم یک پلن (مثل V2ray) می‌خرد
     amount = data.get('charge_amount') or data.get('price', 0)
     plan_info = data.get('plan_name', 'شارژ کیف پول')
-    # -----------------------------
 
     await message.answer("✅ رسید شما دریافت شد و برای مدیریت ارسال گردید. لطفاً تا تایید ادمین منتظر بمانید.")
     
-    # دکمه‌های ادمین با مبلغ داینامیک
     kb = types.InlineKeyboardMarkup().add(
         types.InlineKeyboardButton("✅ تایید و واریز", callback_data=f"admin_ok_{message.from_user.id}_{amount}"),
         types.InlineKeyboardButton("❌ رد رسید", callback_data=f"admin_no_{message.from_user.id}_0")
@@ -205,11 +235,7 @@ async def handle_receipt(message: types.Message, state: FSMContext):
         f"💵 مبلغ: **{amount:,} تومان**\n"
         f"📝 بابت: `{plan_info}`"
     )
-    
-    # ارسال برای ادمین
     await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption, reply_markup=kb, parse_mode="Markdown")
-    
-    # پاک کردن حافظه موقت (State)
     await state.finish()
 
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_wallet_"), state="*")
@@ -233,140 +259,14 @@ async def admin_decision(callback: types.CallbackQuery):
     action, user_id, price = parts[1], int(parts[2]), int(parts[3])
     
     if action == "ok":
-        await bot.send_message(user_id, "✅ رسید شما تایید شد. اکانت شما بزودی ارسال میشود.")
+        # اگر شارژ کیف پول بود، اینجا میتونی موجودی دیتابیس رو هم همزمان زیاد کنی
+        await bot.send_message(user_id, f"✅ رسید شما تایید شد. مبلغ {price:,} تومان به حساب شما منظور گردید.")
         await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ تایید شد.", reply_markup=None)
     else:
         await bot.send_message(user_id, "❌ رسید شما رد شد. در صورت لزوم به پشتیبانی پیام دهید.")
         await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ رد شد.", reply_markup=None)
     await callback.answer()
 
-# --- ۸. هندلرهای دکمه‌های پنل کاربری (بخش اختیاری) ---
-
-@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
-async def wallet_main_handler(callback: types.CallbackQuery):
-    await callback.answer("در حال باز کردن بخش شارژ...")
-    """این هندلر وقتی کاربر روی شارژ کیف پول می‌زند اجرا می‌شود"""
-    text = (
-        "💳 **بخش شارژ کیف پول**\n\n"
-        "لطفاً مبلغ مورد نظر برای شارژ را انتخاب کنید:\n"
-        "بعد از انتخاب مبلغ، شماره کارت برای شما نمایش داده می‌شود."
-    )
-    await callback.message.edit_text(text, reply_markup=nav.account_menu(), parse_mode="Markdown")
-
 @dp.callback_query_handler(lambda c: c.data == "my_services", state="*")
 async def my_services_list(callback: types.CallbackQuery):
-    """این هندلر لیست خریدهای تایید شده کاربر را نشان می‌دهد"""
-    # در آینده می‌توانید اینجا کوئری بزنید به دیتابیس (Invoices) و لیست را نشان دهید
     await callback.answer("📦 در حال حاضر سرویس فعالی برای شما ثبت نشده است.", show_alert=True)
-
-# --- ۹. بخش شارژ کیف پول ---
-
-# وقتی کاربر روی دکمه شارژ کیف پول می‌زند
-@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
-async def wallet_main_handler(callback: types.CallbackQuery):
-    text = "💳 **بخش شارژ کیف پول**\n\nلطفاً یک مبلغ را انتخاب کنید یا مبلغ دلخواه خود را وارد کنید:"
-    
-    # ساخت کیبورد مبالغ (اگر در markups نداری همینجا بسازیم)
-    kb = types.InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        types.InlineKeyboardButton("50,000 تومان", callback_data="charge_50000"),
-        types.InlineKeyboardButton("100,000 تومان", callback_data="charge_100000"),
-        types.InlineKeyboardButton("200,000 تومان", callback_data="charge_200000")
-    )
-    kb.add(types.InlineKeyboardButton("➕ وارد کردن مبلغ دلخواه", callback_data="charge_custom"))
-    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="my_account"))
-    
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    await callback.answer()
-
-# اگر کاربر "مبلغ دلخواه" را انتخاب کرد
-@dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
-async def custom_amount_request(callback: types.CallbackQuery):
-    await BuyState.entering_custom_amount.set()
-    await callback.message.edit_text("لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:\n(مثال: 150000)")
-    await callback.answer()
-
-# دریافت مبلغ دلخواه تایپ شده توسط کاربر
-@dp.message_handler(state=BuyState.entering_custom_amount)
-async def process_custom_amount(message: types.Message, state: FSMContext):
-    if not message.text.isdigit():
-        return await message.answer("⚠️ لطفاً فقط عدد وارد کنید!")
-    
-    amount = int(message.text)
-    await state.update_data(charge_amount=amount)
-    await BuyState.waiting_for_receipt.set()
-    
-    # نمایش اطلاعات پرداخت
-    text = (f"✅ مبلغ درخواستی: {amount:,} تومان\n\n"
-            f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
-            f"👤 بنام: {config.CARD_NAME}\n\n"
-            "پس از واریز، عکس رسید را اینجا ارسال کنید.")
-    await message.answer(text, parse_mode="Markdown")
-
-# --- بخش شارژ کیف پول (مبالغ آماده و دلخواه) ---
-
-# ۱. وقتی کاربر روی یکی از مبالغ آماده (مثل ۵۰۰۰۰) کلیک می‌کند
-@dp.callback_query_handler(lambda c: c.data.startswith("charge_") and c.data != "charge_custom", state="*")
-async def process_fixed_charge(callback: types.CallbackQuery, state: FSMContext):
-    # جدا کردن مبلغ از کالبک دیتا (مثلا از charge_50000 عدد 50000 را برمی‌دارد)
-    amount = int(callback.data.split("_")[1])
-    
-    # ذخیره مبلغ در حافظه موقت ربات
-    await state.update_data(charge_amount=amount)
-    
-    # رفتن به مرحله انتظار برای ارسال رسید
-    await BuyState.waiting_for_receipt.set()
-    
-    text = (
-        f"⏳ **درخواست شارژ: {amount:,} تومان**\n\n"
-        f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
-        f"👤 بنام: **{config.CARD_NAME}**\n\n"
-        f"📸 لطفاً پس از واریز، تصویر رسید را ارسال کنید."
-    )
-    # دکمه انصراف برای برگشت به حساب کاربری
-    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("❌ انصراف", callback_data="my_account"))
-    
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    await callback.answer()
-
-# ۲. وقتی کاربر دکمه "مبلغ دلخواه" را می‌زند
-# الف) وقتی کاربر روی دکمه شارژ کلیک می‌کند
-@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
-async def wallet_main_handler(callback: types.CallbackQuery):
-    text = "💳 **بخش شارژ کیف پول**\n\nلطفاً مبلغ مورد نظر برای شارژ را انتخاب کنید یا مبلغ دلخواه را بزنید:"
-    
-    # اصلاح شد: به جای account_menu از wallet_charge_menu استفاده کن
-    try:
-        await callback.message.edit_text(
-            text, 
-            reply_markup=nav.wallet_charge_menu(), 
-            parse_mode="Markdown"
-        )
-        await callback.answer()
-    except Exception as e:
-        print(f"Error logic: {e}")
-        await callback.answer("⚠️ خطا در نمایش منو")
-
-# وقتی کاربر روی دکمه "مبلغ دلخواه" میزنه
-# وقتی کاربر روی دکمه مبلغ دلخواه میزنه
-@dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
-async def custom_charge_start(callback: types.CallbackQuery):
-    await BuyState.entering_custom_amount.set() # وضعیت تایپ عدد فعال میشه
-    await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:")
-    await callback.answer()
-
-# وقتی کاربر عدد رو میفرسته
-@dp.message_handler(state=BuyState.entering_custom_amount)
-async def get_custom_amount(message: types.Message, state: FSMContext):
-    if message.text.isdigit():
-        amount = int(message.text)
-        await state.update_data(charge_amount=amount)
-        await BuyState.waiting_for_receipt.set() # میره برای دریافت عکس رسید
-        
-        await message.answer(
-            f"✅ مبلغ درخواستی: {amount:,} تومان\n\n"
-            f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
-            "📸 لطفاً عکس رسید را ارسال کنید."
-        )
-    else:
-        await message.answer("⚠️ لطفاً فقط عدد انگلیسی وارد کنید!")
