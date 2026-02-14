@@ -71,15 +71,15 @@ def payment_methods(inv_id): # حتما inv_id بگیرد
     )
     return kb
 
-def account_menu():
+def wallet_charge_menu():
     kb = InlineKeyboardMarkup(row_width=2)
-    # اصلاح شده: تمام کدهای اجرایی حذف و فقط دکمه‌ها باقی ماندند
     kb.add(
-        InlineKeyboardButton("💳 شارژ کیف پول", callback_data="charge_wallet"),
-        InlineKeyboardButton("🚀 سرویس‌های من", callback_data="my_services")
+        InlineKeyboardButton("50,000", callback_data="charge_50000"),
+        InlineKeyboardButton("100,000", callback_data="charge_100000"),
+        InlineKeyboardButton("200,000", callback_data="charge_200000"),
+        InlineKeyboardButton("500,000", callback_data="charge_500000")
     )
-    kb.add(InlineKeyboardButton("💰 زیرمجموعه‌گیری (کسب درآمد)", callback_data="referral_section"))
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
+    # اضافه کردن دکمه مبلغ دلخواه
+    kb.add(InlineKeyboardButton("➕ مبلغ دلخواه (تایپ مبلغ)", callback_data="charge_custom"))
+    kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="my_account"))
     return kb
-
-def
