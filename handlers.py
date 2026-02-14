@@ -41,10 +41,7 @@ async def start(message: types.Message, state: FSMContext):
 async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
     await callback.message.edit_text(
-        "✨ به منوی اصلی خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
-        reply_markup=nav.main_menu()
-    )
-    await callback.answer()
+     
 
 # --- هندلر حساب کاربری ---
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
