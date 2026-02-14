@@ -21,16 +21,16 @@ def generate_random_username():
 async def start(message: types.Message, state: FSMContext):
     await state.finish()
     
-    # بررسی اینکه آیا کاربر با لینک دعوت آمده است
     args = message.get_args()
     referrer_id = args if args.isdigit() else None
-    
-    # ثبت کاربر (اگر جدید باشد) با معرف
     user = await get_user(message.from_user.id, referrer_id)
     
-    # حذف کیبورد بزرگ قبلی و ارسال منوی شیشه‌ای جدید
-    await message.answer("✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
-                         reply_markup=types.ReplyKeyboardRemove()) # ابتدا کیبورد بزرگ را حذف می‌کند
+    # مرحله اول: حذف کیبورد بزرگ
+    await message.answer("✨ به ربات آراد VIP خوش آمدید", reply_markup=types.ReplyKeyboardRemove())
+    
+    # مرحله دوم: ارسال منوی اصلی شیشه‌ای
+    await message.answer("لطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
+
     
     await message.answer("منوی اصلی:", reply_markup=nav.main_menu())
 
