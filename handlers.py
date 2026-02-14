@@ -287,3 +287,22 @@ async def admin_decision(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "my_services", state="*")
 async def my_services_list(callback: types.CallbackQuery):
     await callback.answer("📦 در حال حاضر سرویس فعالی برای شما ثبت نشده است.", show_alert=True)
+
+# --- هندلر سراسری بازگشت به منوی اصلی ---
+@dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
+async def back_to_main_handler(callback: types.CallbackQuery, state: FSMContext):
+    # ۱. تمام وضعیت‌های قبلی (مثل وسط خرید بودن) رو پاک می‌کنه
+    await state.finish()
+    
+    # ۲. متن پیام رو به منوی اصلی تغییر میده
+    try:
+        await callback.message.edit_text(
+            "✨ به منوی اصلی خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
+            reply_markup=nav.main_menu()
+        )
+    except:
+        # اگر پیام تکراری بود و ادیت نشد، فقط انسر میده
+        pass
+        
+    # ۳. ساعتِ شنیِ روی دکمه رو حذف می‌کنه
+    await callback.answer()
