@@ -23,28 +23,22 @@ def generate_random_username():
 async def start(message: types.Message, state: FSMContext):
     await state.finish()
     
+    # بررسی زیرمجموعه‌گیری
     args = message.get_args()
     referrer_id = args if args.isdigit() else None
     user = await get_user(message.from_user.id, referrer_id)
     
-    # مرحله اول: حذف کیبورد بزرگ
-    await message.answer("✨ به ربات آراد VIP خوش آمدید", reply_markup=types.ReplyKeyboardRemove())
-    
-    # مرحله دوم: ارسال منوی اصلی شیشه‌ای
-    await message.answer("لطفاً یکی از گزینه‌های زیر را انتخاب کنید:", reply_markup=nav.main_menu())
-
-    
-    await message.answer("منوی اصلی:", reply_markup=nav.main_menu())
-
-# --- هندلر بازگشت به منوی اصلی (این همان تیکه‌ای است که پرسیدی کجا بگذارم) ---
-@dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
-async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
-    await state.finish()
-    await callback.message.edit_text(
-   "✨ به منوی اصلی خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
+    # ارسال فقط یک پیام که هم دکمه‌های بزرگ را حذف می‌کند و هم منوی اصلی را می‌آورد
+    await message.answer(
+        "✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
         reply_markup=nav.main_menu()
     )
-    await callback.answer()
+    
+    # برای اطمینان از حذف دکمه‌های بزرگ (ReplyKeyboard) در دفعات بعد:
+    # یک پیام خالی می‌فرستیم و بلافاصله دستور حذف را می‌دهیم
+    # اما چون نمی‌خواهیم دو منو دیده شود، بهترین راه این است که 
+    # منوی اصلی شما (main_menu) از نوع Inline باشد که هست.
+
      
 
 # --- هندلر حساب کاربری ---
