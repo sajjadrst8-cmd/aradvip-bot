@@ -7,21 +7,35 @@ from database import users_col, invoices_col, plans_col
 import markups as nav
 import config
 from bson import ObjectId
+from config import WALLETS, ADMIN_ID
 import aiohttp
 
 async def get_crypto_prices():
     try:
         async with aiohttp.ClientSession() as session:
-            # دریافت قیمت تتر به تومان (دلار آزاد)
-            async with session.get("https://api.tala.ir/v1/gold/price") as resp: # یا هر API معتبر دیگر
-                # نکته: برای تست، اینجا قیمت ثابت می‌گذاریم یا از یک API معتبر استفاده می‌کنیم
-                # در اینجا فرض می‌کنیم تتر 70,000 تومان و ترون 12,000 تومان است
-                # برای کد واقعی، آدرس API صرافی را جایگزین کنید
-                tether_price = 70000 
-                trx_price = 14000
-                return tether_price, trx_price
-    except:
-        return 70000, 14000 # قیمت زاپاس در صورت خطا
+            # دریافت قیمت لحظه‌ای تتر از نوبیتکس
+            async with session.get("https://api.nobitex.ir/v2/orderbook/USDTIRT") as resp:
+                data = await resp.json()
+                # قیمت‌ها در نوبیتکس به ریال هستند، تقسیم بر 10 می‌کنیم تا تومان شود
+                tether_price = int(data['lastTradePrice']) / 10 
+            
+            # دریافت قیمت لحظه‌ای ترون (TRX)
+            async with session.get("https://api.nobitex.ir/v2/orderbook/TRXUSDT") as resp:
+                data = await resp.json()
+                trx_in_usdt = float(data['lastTradePrice'])
+                trx_price = trx_in_usdt * tether_price
+            
+            # دریافت قیمت لحظه‌ای تون‌کوین (TON)
+            async with session.get("https://api.nobitex.ir/v2/orderbook/TONUSDT") as resp:
+                data = await resp.json()
+                ton_in_usdt = float(data['lastTradePrice'])
+                ton_price = ton_in_usdt * tether_price
+                
+            return int(tether_price), int(trx_price), int(ton_price)
+    except Exception as e:
+        # در صورت بروز خطا در اتصال، این قیمت‌های پیش‌فرض استفاده می‌شوند
+        print(f"Error fetching prices: {e}")
+        return 70000, 14500, 480000 
 
 class BuyState(StatesGroup):
     entering_username = State()
