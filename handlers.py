@@ -546,3 +546,44 @@ async def admin_stats(callback: types.CallbackQuery):
         f"🧾 تعداد کل فاکتورها: {total_invoices}",
         reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="admin_main_panel"))
     )
+# هندلر ورود به بخش انتخاب نوع ارز
+@dp.callback_query_handler(lambda c: c.data == "charge_crypto", state="*")
+async def crypto_main_menu_handler(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "💎 **انتخاب نوع ارز جهت شارژ**\n🎁 هدیه: ۲۰٪ حجم اضافه در فاکتور نهایی!", 
+        reply_markup=nav.charge_menu()
+    )
+
+# هندلر انتخاب شبکه تتر
+@dp.callback_query_handler(lambda c: c.data == "charge_usdt", state="*")
+async def usdt_networks_menu(callback: types.CallbackQuery):
+    await callback.message.edit_text("لطفاً شبکه انتقال تتر (USDT) را انتخاب کنید:", reply_markup=nav.usdt_networks())
+
+# هندلر نهایی نمایش آدرس و محاسبه‌گر
+@dp.callback_query_handler(lambda c: c.data.startswith("net_") or c.data in ["charge_trx", "charge_ton"], state="*")
+async def process_crypto_charge_final(callback: types.CallbackQuery, state: FSMContext):
+    data = callback.data
+    tether_p, trx_p, ton_p = await get_crypto_prices()
+    
+    if "usdt_trc20" in data:
+        coin, net, addr, price = "Tether", "TRC20", WALLETS["usdt_trc20"], tether_p
+    elif "usdt_erc20" in data:
+        coin, net, addr, price = "Tether", "ERC20", WALLETS["usdt_erc20"], tether_p
+    elif "trx" in data:
+        coin, net, addr, price = "Tron", "TRC20", WALLETS["trx"], trx_p
+    elif "ton" in data:
+        coin, net, addr, price = "TON Coin", "TON", WALLETS["ton"], ton_p
+
+    await state.update_data(c_type=coin, c_net=net, c_price=price)
+
+    text = (
+        f"💎 **شارژ با {coin} ({net})**\n\n"
+        f"💰 قیمت لحظه‌ای: **{price:,} تومان**\n"
+        f"🎁 **هدیه:** ۲۰٪ شارژ هدیه اعمال می‌شود.\n\n"
+        f"✅ **آدرس واریز:**\n"
+        f"`{addr}`\n\n"
+        f"📸 پس از واریز، تصویر رسید را ارسال کنید."
+    )
+    
+    await BuyState.waiting_for_receipt.set()
+    await callback.message.answer(text, parse_mode="Markdown")
