@@ -111,3 +111,21 @@ def biubiu_test_menu():
     )
     return kb
 
+def charge_menu():
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("🔹 شارژ با TETHER (USDT)", callback_data="charge_usdt"),
+        InlineKeyboardButton("🔸 شارژ با TRON (TRX)", callback_data="charge_trx"),
+        InlineKeyboardButton("💎 شارژ با TON Coin", callback_data="charge_ton"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="my_account")
+    )
+    return kb
+
+def usdt_networks():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("TRC20 (ارزان و سریع)", callback_data="net_usdt_trc20"),
+        InlineKeyboardButton("ERC20 (اتریوم)", callback_data="net_usdt_erc20"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="charge_crypto")
+    )
+    return kb
