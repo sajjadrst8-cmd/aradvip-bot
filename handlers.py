@@ -78,8 +78,12 @@ async def my_account_handler(callback: types.CallbackQuery, state: FSMContext):
         f"👥 تعداد زیرمجموعه: **{ref_count} نفر**\n\n"
         f"یکی از گزینه‌های زیر را انتخاب کنید:"
     )
-    await callback.message.edit_text(text, reply_markup=nav.account_menu(), parse_mode="Markdown")
-    await callback.answer()
+    # این تیکه کد رو پیدا کن و اصلاح کن
+markup = InlineKeyboardMarkup()
+# مهم اینجاست: callback_data حتما باید charge_crypto باشه
+markup.add(InlineKeyboardButton("💰 شارژ حساب (ارز دیجیتال)", callback_data="charge_crypto")) 
+markup.add(InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
+await callback.message.edit_text(text, reply_markup=markup)
 
 @dp.callback_query_handler(lambda c: c.data == "referral_section", state="*")
 async def referral_handler(callback: types.CallbackQuery):
