@@ -13,13 +13,16 @@ async def get_user(user_id, referrer_id=None):
     if not user:
         new_user = {
             "user_id": user_id,
-            "wallet": 0,
+            "wallet": 0,           # موجودی به تومان
+            "usdt_balance": 0,     # موجودی تتر (اختیاری)
+            "trx_balance": 0,      # موجودی ترون (اختیاری)
             "ref_count": 0,
-            "referred_by": referrer_id, # آیدی کسی که این کاربر را دعوت کرده
+            "referred_by": referrer_id,
             "reg_date": datetime.datetime.now()
         }
         await users_col.insert_one(new_user)
-        
+        # ... باقی کدها
+
         # اگر معرف داشت، تعداد زیرمجموعه‌های معرف را یکی زیاد کن
         if referrer_id:
             await users_col.update_one({"user_id": int(referrer_id)}, {"$inc": {"ref_count": 1}})
