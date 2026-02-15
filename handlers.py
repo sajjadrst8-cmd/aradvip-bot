@@ -210,20 +210,6 @@ async def custom_amount_request(callback: types.CallbackQuery):
     await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:\n(مثال: 150000)")
     await callback.answer()
 
-@dp.message_handler(state=BuyState.entering_custom_amount)
-async def process_custom_amount(message: types.Message, state: FSMContext):
-    if not message.text.isdigit():
-        return await message.answer("⚠️ لطفاً فقط عدد انگلیسی وارد کنید!")
-    
-    amount = int(message.text)
-    await state.update_data(charge_amount=amount)
-    await BuyState.waiting_for_receipt.set()
-    
-    text = (f"✅ مبلغ درخواستی: {amount:,} تومان\n\n"
-            f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
-            f"👤 بنام: {config.CARD_NAME}\n\n"
-            "📸 پس از واریز، عکس رسید را اینجا ارسال کنید.")
-    await message.answer(text, parse_mode="Markdown")
 
 @dp.callback_query_handler(lambda c: c.data.startswith("charge_") and c.data != "charge_custom", state="*")
 async def process_fixed_charge(callback: types.CallbackQuery, state: FSMContext):
