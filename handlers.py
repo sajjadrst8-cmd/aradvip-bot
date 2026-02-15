@@ -3,7 +3,7 @@ from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from loader import dp, bot, ADMIN_ID
-from database import get_user, users_col, add_invoice
+from database import users_col, invoices_col, plans_col
 import markups as nav
 import config
 from bson import ObjectId
