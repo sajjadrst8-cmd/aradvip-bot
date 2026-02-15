@@ -245,14 +245,49 @@ async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     data = await state.get_data()
     price = data.get('price', 0)
+    plan_name = data.get('plan_name', 'نامشخص')
+    username_req = data.get('username', '-')
     
     if user.get('wallet', 0) >= price:
+        # کسر موجودی از کیف پول
         await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
-        await callback.message.edit_text("✅ پرداخت موفق! سفارش شما برای مدیریت ارسال شد.")
-        await bot.send_message(ADMIN_ID, f"🚀 خرید با کیف پول\n👤 کاربر: `{callback.from_user.id}`\n💰 مبلغ: {price:,}")
+        
+        # ثبت فاکتور به صورت "🟠 در انتظار" در دیتابیس (برای اینکه در لیست فاکتورها بماند تا ادمین تایید کند)
+        # اگر تابع add_invoice را داری از آن استفاده کن، وگرنه مستقیم اینجا اینسرت کن:
+        from database import invoices_col
+        inv_id = os.urandom(4).hex()
+        invoice = {
+            "inv_id": inv_id,
+            "user_id": callback.from_user.id,
+            "status": "🟠 در انتظار", # تا زمانی که ادمین کانفیگ ندهد در انتظار می‌ماند
+            "amount": price,
+            "plan": plan_name,
+            "username": username_req,
+            "date": datetime.datetime.now().strftime("%Y/%m/%d - %H:%M")
+        }
+        await invoices_col.insert_one(invoice)
+
+        await callback.message.edit_text("✅ پرداخت با موفقیت از کیف پول انجام شد.\n🚀 سفارش شما برای مدیریت ارسال گردید و بزودی کانفیگ ارسال می‌شود.")
+        
+        # اطلاع‌رسانی به ادمین با دکمه "ارسال کانفیگ"
+        # استفاده از 0 در قیمت چون قبلاً کسر شده و نیازی به واریز مجدد نیست
+        kb = types.InlineKeyboardMarkup().add(
+            types.InlineKeyboardButton("🚀 ارسال کانفیگ و تکمیل", callback_data=f"admin_ok_{callback.from_user.id}_0")
+        )
+        
+        admin_text = (
+            f"🛍 **خرید جدید با کیف پول**\n\n"
+            f"👤 کاربر: <a href='tg://user?id={callback.from_user.id}'>{callback.from_user.full_name}</a>\n"
+            f"🆔 آیدی: `{callback.from_user.id}`\n"
+            f"📦 پلن: `{plan_name}`\n"
+            f"👤 نام کاربری درخواستی: `{username_req}`\n"
+            f"💰 مبلغ: {price:,} تومان (از کیف پول کسر شد)"
+        )
+        await bot.send_message(ADMIN_ID, admin_text, reply_markup=kb, parse_mode="HTML")
         await state.finish()
     else:
-        await callback.answer("❌ موجودی کافی نیست!", show_alert=True)
+        await callback.answer("❌ موجودی کیف پول شما کافی نیست!", show_alert=True)
+
 
 # --- ۷. هندلر ادمین ---
 # --- نسخه نهایی هندلر ادمین (جایگزین کد قبلی شما) ---
