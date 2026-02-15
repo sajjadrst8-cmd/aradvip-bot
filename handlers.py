@@ -255,40 +255,63 @@ async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("❌ موجودی کافی نیست!", show_alert=True)
 
 # --- ۷. هندلر ادمین ---
+# --- نسخه نهایی هندلر ادمین (جایگزین کد قبلی شما) ---
 @dp.callback_query_handler(lambda c: c.data.startswith("admin_"), state="*")
-async def admin_decision(callback: types.CallbackQuery):
+async def admin_decision(callback: types.CallbackQuery, state: FSMContext):
     parts = callback.data.split("_")
     action, user_id, price = parts[1], int(parts[2]), int(parts[3])
     
+    # پیدا کردن آخرین فاکتور در انتظار این کاربر برای ست کردن کانفیگ
+    invoice = await invoices_col.find_one({"user_id": user_id, "status": "🟠 در انتظار"}, sort=[("_id", -1)])
+
     if action == "ok":
-        # --- بخش حیاتی: اضافه کردن موجودی به دیتابیس ---
-        await users_col.update_one(
-            {"user_id": user_id}, 
-            {"$inc": {"wallet": price}} # مبلغ رو به کیف پول کاربر اضافه میکنه
-        )
-        
-        # اطلاع‌رسانی به کاربر
-        await bot.send_message(
-            user_id, 
-            f"✅ رسید شما تایید شد!\n💰 مبلغ **{price:,} تومان** به کیف پول شما اضافه شد."
-        )
-        
-        # تغییر متن پیام برای ادمین که بدونه انجام شده
-        await callback.message.edit_caption(
-            caption=callback.message.caption + f"\n\n✅ تایید و مبلغ {price:,} واریز شد.", 
-            reply_markup=None
-        )
+        if invoice:
+            # بردن ادمین به وضعیت "انتظار برای ارسال کانفیگ"
+            await state.set_state("wait_for_config")
+            await state.update_data(target_user_id=user_id, target_inv_id=invoice['inv_id'], target_price=price)
+            
+            await callback.message.answer(f"✅ رسید تایید شد.\nحالا لطفاً **کانفیگ V2ray** یا لایسنس را ارسال کنید تا برای کاربر فعال شود:")
+            # پاک کردن دکمه‌ها از روی رسید ادمین
+            await callback.message.edit_reply_markup(reply_markup=None)
+        else:
+            # اگر به هر دلیلی فاکتوری پیدا نشد، باز هم کیف پول رو شارژ کن (پلن B)
+            await users_col.update_one({"user_id": user_id}, {"$inc": {"wallet": price}})
+            await bot.send_message(user_id, f"✅ رسید تایید شد و مبلغ {price:,} به کیف پول شما اضافه گشت.")
+            await callback.answer("⚠️ فاکتوری پیدا نشد، فقط کیف پول شارژ شد.", show_alert=True)
+            await callback.message.edit_reply_markup(reply_markup=None)
     else:
-        await bot.send_message(user_id, "❌ رسید شما رد شد. در صورت لزوم به پشتیبانی پیام دهید.")
-        await callback.message.edit_caption(
-            caption=callback.message.caption + "\n\n❌ رد شد.", 
-            reply_markup=None
-        )
+        # رد کردن رسید
+        await bot.send_message(user_id, "❌ رسید شما توسط مدیریت رد شد.")
+        await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ رد شد.", reply_markup=None)
+    
     await callback.answer()
 
-@dp.callback_query_handler(lambda c: c.data == "my_services", state="*")
-async def my_services_list(callback: types.CallbackQuery):
-    await callback.answer("📦 در حال حاضر سرویس فعالی برای شما ثبت نشده است.", show_alert=True)
+# --- حتماً این هندلر را هم بلافاصله بعد از کد بالا اضافه کنید ---
+@dp.message_handler(state="wait_for_config", user_id=ADMIN_ID)
+async def receive_config_from_admin(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    user_id = data['target_user_id']
+    inv_id = data['target_inv_id']
+    price = data['target_price']
+    config_text = message.text # متن کانفیگ که ادمین فرستاده
+
+    # ۱. آپدیت وضعیت فاکتور و ذخیره کانفیگ در دیتابیس
+    await invoices_col.update_one(
+        {"inv_id": inv_id},
+        {"$set": {"status": "✅ فعال", "config_data": config_text}}
+    )
+
+    # ۲. شارژ کیف پول کاربر
+    await users_col.update_one({"user_id": user_id}, {"$inc": {"wallet": price}})
+
+    # ۳. پیام تایید برای کاربر
+    await bot.send_message(
+        user_id, 
+        f"✅ **اشتراک شما فعال شد!**\n\n💰 مبلغ {price:,} تومان به حساب شما منظور شد.\n🚀 هم‌اکنون می‌توانید از منوی **«اشتراک‌های من»** کانفیگ خود را دریافت کنید."
+    )
+
+    await message.answer("🚀 عالی شد! کانفیگ ثبت شد و اشتراک کاربر فعال گردید.")
+    await state.finish() # خروج از وضعیت انتظار
 
 # --- هندلر سراسری بازگشت به منوی اصلی ---
 @dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
