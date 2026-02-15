@@ -355,3 +355,99 @@ async def test_biubiu_info(callback: types.CallbackQuery):
 
 # نکته: دکمه Biubiu به دلیل اینکه با "plan_" شروع می‌شود، 
 # خودکار وارد هندلر ask_username و پروسه پرداخت کارت/کیف پول که قبلاً نوشتیم می‌شود.
+
+# نمایش لیست اشتراک‌های فعال
+@dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
+async def my_subs_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    # جستجو در کالکشن اینویس‌ها برای موارد فعال
+    active_subs = await invoices_col.find({"user_id": user_id, "status": "✅ فعال"}).to_list(length=50)
+    
+    if not active_subs:
+        await callback.answer("❌ شما در حال حاضر هیچ اشتراک فعالی ندارید.", show_alert=True)
+        return
+
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    for sub in active_subs:
+        # نام دکمه برابر با نام پلن خریداری شده
+        kb.add(types.InlineKeyboardButton(f"📦 {sub['plan']}", callback_data=f"show_cfg_{sub['inv_id']}"))
+    
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
+    
+    await callback.message.edit_text(
+        "📜 **لیست اشتراک‌های فعال شما**\nبرای مشاهده جزئیات اتصال، یکی را انتخاب کنید:",
+        reply_markup=kb, parse_mode="Markdown"
+    )
+
+# نمایش تاریخچه فاکتورها
+@dp.callback_query_handler(lambda c: c.data == "my_invs", state="*")
+async def my_invoices_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    # گرفتن ۱۰ فاکتور آخر کاربر
+    all_invs = await invoices_col.find({"user_id": user_id}).sort("_id", -1).to_list(length=10)
+    
+    if not all_invs:
+        await callback.answer("❓ شما هنوز هیچ فاکتوری ثبت نکرده‌اید.", show_alert=True)
+        return
+
+    text = "🧾 **تاریخچه فاکتورهای شما**\n\n"
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    
+    for inv in all_invs:
+        status = inv['status']
+        text += f"🔹 پلن: `{inv['plan']}`\n💰 مبلغ: {inv['amount']:,} تومان\n📊 وضعیت: {status}\n🗓 تاریخ: {inv['date']}\n\n"
+        
+        # اگر فاکتور پرداخت نشده بود، دکمه پرداخت مجدد ظاهر شود
+        if "انتظار" in status:
+            kb.add(types.InlineKeyboardButton(f"💳 پرداخت فاکتور {inv['plan']}", callback_data=f"repay_{inv['inv_id']}"))
+
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+
+# هندلر پرداخت مجدد (اتصال به منوی پرداخت)
+@dp.callback_query_handler(lambda c: c.data.startswith("repay_"), state="*")
+async def repay_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
+    inv_id = callback.data.split("_")[1]
+    inv = await invoices_col.find_one({"inv_id": inv_id})
+    
+    # ذخیره اطلاعات فاکتور در State برای ادامه پروسه خرید
+    await state.update_data(price=inv['amount'], plan_name=inv['plan'], s_type=inv['type'], username=inv['username'])
+    
+    await callback.message.edit_text(
+        f"♻️ **بازآوری فاکتور جهت پرداخت**\nمبلغ: {inv['amount']:,} تومان\nپلن: {inv['plan']}\n\nلطفاً روش پرداخت را انتخاب کنید:",
+        reply_markup=nav.payment_methods(inv_id) # اینجا inv_id برای کارت به کارت استفاده می‌شود
+    )
+
+
+# نمایش جزئیات کانفیگ (وقتی روی دکمه اشتراک کلیک شد)
+@dp.callback_query_handler(lambda c: c.data.startswith("show_cfg_"), state="*")
+async def show_config_details(callback: types.CallbackQuery):
+    inv_id = callback.data.split("_")[2]
+    sub = await invoices_col.find_one({"inv_id": inv_id})
+    
+    text = (
+        f"🚀 **جزئیات اشتراک: {sub['plan']}**\n\n"
+        f"👤 نام کاربری: `{sub['username']}`\n"
+        f"📅 تاریخ ثبت: `{sub['date']}`\n\n"
+        f"🔌 **لینک اتصال (کانفیگ):**\n"
+        f"`{sub.get('config_data', 'در حال آماده‌سازی...')}`"
+    )
+    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت به لیست", callback_data="my_subs"))
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+
+# ورود به پنل ادمین
+@dp.callback_query_handler(lambda c: c.data == "admin_main_panel", user_id=ADMIN_ID)
+async def admin_panel_main(callback: types.CallbackQuery):
+    await callback.message.edit_text("🛠 به پنل مدیریت خوش آمدید.\nیکی از بخش‌ها را انتخاب کنید:", reply_markup=nav.admin_panel())
+
+# آمار کاربران
+@dp.callback_query_handler(lambda c: c.data == "admin_stats", user_id=ADMIN_ID)
+async def admin_stats(callback: types.CallbackQuery):
+    count = await users_col.count_documents({})
+    total_invoices = await invoices_col.count_documents({})
+    await callback.message.edit_text(
+        f"📊 **آمار ربات:**\n\n"
+        f"👥 تعداد کل کاربران: {count}\n"
+        f"🧾 تعداد کل فاکتورها: {total_invoices}",
+        reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="admin_main_panel"))
+    )
