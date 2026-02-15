@@ -1,6 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram import types
 
+# --- منوی اصلی ---
 def main_menu():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new"))
@@ -13,6 +13,7 @@ def main_menu():
     kb.add(InlineKeyboardButton("📊 وضعیت سرویس‌ها", url="http://v2inj.galexystore.ir:3001/"))
     return kb
 
+# --- منوی خرید سرویس ---
 def buy_menu():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("V2ray(تانل نیم بها+کاربرنامحدود)", callback_data="buy_v2ray"),
@@ -20,76 +21,44 @@ def buy_menu():
            InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
     return kb
 
-def payment_methods(inv_id): # حتما inv_id بگیرد
+# --- روش‌های پرداخت فاکتور ---
+def payment_methods(inv_id):
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
-        InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv_id}"),
-        InlineKeyboardButton("💰 کیف پول", callback_data=f"pay_wallet_{inv_id}"),
+        # دکمه کارت به کارت حذف شد چون سیستم شما الان کریپتو محور شده
+        InlineKeyboardButton("💰 پرداخت از موجودی کیف پول", callback_data=f"pay_wallet_{inv_id}"),
+        InlineKeyboardButton("💎 شارژ حساب و پرداخت (ارز دیجیتال)", callback_data="charge_crypto"),
         InlineKeyboardButton("❌ لغو و بازگشت", callback_data="main_menu")
     )
     return kb
 
-def account_menu():
-    kb = InlineKeyboardMarkup(row_width=2)
-    # اصلاح شده: تمام کدهای اجرایی حذف و فقط دکمه‌ها باقی ماندند
-    kb.add(
-        InlineKeyboardButton("💳 شارژ کیف پول", callback_data="charge_wallet"),
-        InlineKeyboardButton("🚀 سرویس‌های من", callback_data="my_services")
-    )
-    kb.add(InlineKeyboardButton("💰 زیرمجموعه‌گیری (کسب درآمد)", callback_data="referral_section"))
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
-    return kb
-
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram import types
-
-def main_menu():
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new"))
-    kb.add(InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test"))
-    kb.row(InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"), 
-           InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invs"))
-    kb.add(InlineKeyboardButton("👤 حساب کاربری", callback_data="my_account"))
-    kb.row(InlineKeyboardButton("📞 پشتیبانی", callback_data="support"), 
-           InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/AradVIPTeaching"))
-    kb.add(InlineKeyboardButton("📊 وضعیت سرویس‌ها", url="http://v2inj.galexystore.ir:3001/"))
-    return kb
-
-def buy_menu():
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("V2ray(تانل نیم بها+کاربرنامحدود)", callback_data="buy_v2ray"),
-           InlineKeyboardButton("Biubiu VPN", callback_data="buy_biubiu"),
-           InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
-    return kb
-
-def payment_methods(inv_id): # حتما inv_id بگیرد
+# --- منوی بخش شارژ ارز دیجیتال ---
+def charge_menu():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
-        InlineKeyboardButton("💳 کارت به کارت", callback_data=f"pay_card_{inv_id}"),
-        InlineKeyboardButton("💰 کیف پول", callback_data=f"pay_wallet_{inv_id}"),
-        InlineKeyboardButton("❌ لغو و بازگشت", callback_data="main_menu")
+        InlineKeyboardButton("🔹 TETHER (USDT) + 20% هدیه", callback_data="charge_usdt"),
+        InlineKeyboardButton("🔸 TRON (TRX) + 20% هدیه", callback_data="charge_trx"),
+        InlineKeyboardButton("💎 TON Coin + 20% هدیه", callback_data="charge_ton"),
+        InlineKeyboardButton("🔙 بازگشت به حساب", callback_data="my_account")
     )
     return kb
 
-# در فایل markups.py
-
-def wallet_charge_menu():
+# --- انتخاب شبکه تتر ---
+def usdt_networks():
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
-        InlineKeyboardButton("50,000 تومان", callback_data="charge_50000"),
-        InlineKeyboardButton("100,000 تومان", callback_data="charge_100000"),
-        InlineKeyboardButton("200,000 تومان", callback_data="charge_200000"),
-        InlineKeyboardButton("500,000 تومان", callback_data="charge_500000")
+        InlineKeyboardButton("TRC20 (پیشنهادی)", callback_data="net_usdt_trc20"),
+        InlineKeyboardButton("ERC20", callback_data="net_usdt_erc20"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="charge_crypto")
     )
-    # دکمه مبلغ دلخواه که خیلی برات مهم بود
-    kb.add(InlineKeyboardButton("➕ وارد کردن مبلغ دلخواه", callback_data="charge_custom"))
-    kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="my_account"))
     return kb
+
+# --- منوی بخش تست ---
 def test_subs_menu():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
         InlineKeyboardButton("V2ray (رایگان)", callback_data="test_v2ray"),
-        InlineKeyboardButton("Biubiu VPN", callback_data="test_biubiu"),
+        InlineKeyboardButton("Biubiu VPN (تست ۱ روزه)", callback_data="test_biubiu"),
         InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")
     )
     return kb
@@ -97,54 +66,24 @@ def test_subs_menu():
 def v2ray_test_confirm():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
-        InlineKeyboardButton("✅ دریافت تست", callback_data="confirm_v2ray_test"),
+        InlineKeyboardButton("✅ دریافت اشتراک تست", callback_data="confirm_v2ray_test"),
         InlineKeyboardButton("🔙 بازگشت", callback_data="get_test")
     )
     return kb
 
 def biubiu_test_menu():
     kb = InlineKeyboardMarkup(row_width=1)
-    # طبق خواسته شما: ۱ روزه ۵۰ هزار تومان
     kb.add(
         InlineKeyboardButton("⏱ ۱ روزه نامحدود - ۵۰,۰۰۰ تومان", callback_data="plan_biu_50000_1DayTest"),
         InlineKeyboardButton("🔙 بازگشت", callback_data="get_test")
     )
     return kb
 
-def charge_menu():
+# --- پنل مدیریت (برای تکمیل فایل هندلرز) ---
+def admin_panel():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
-        InlineKeyboardButton("🔹 شارژ با TETHER (USDT)", callback_data="charge_usdt"),
-        InlineKeyboardButton("🔸 شارژ با TRON (TRX)", callback_data="charge_trx"),
-        InlineKeyboardButton("💎 شارژ با TON Coin", callback_data="charge_ton"),
-        InlineKeyboardButton("🔙 بازگشت", callback_data="my_account")
-    )
-    return kb
-
-def usdt_networks():
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("TRC20 (ارزان و سریع)", callback_data="net_usdt_trc20"),
-        InlineKeyboardButton("ERC20 (اتریوم)", callback_data="net_usdt_erc20"),
-        InlineKeyboardButton("🔙 بازگشت", callback_data="charge_crypto")
-    )
-    return kb
-# --- دکمه‌های بخش شارژ ارز دیجیتال ---
-def charge_menu():
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(
-        InlineKeyboardButton("🔹 شارژ با TETHER (USDT)", callback_data="charge_usdt"),
-        InlineKeyboardButton("🔸 شارژ با TRON (TRX)", callback_data="charge_trx"),
-        InlineKeyboardButton("💎 شارژ با TON Coin", callback_data="charge_ton"),
-        InlineKeyboardButton("🔙 بازگشت", callback_data="my_account")
-    )
-    return kb
-
-def usdt_networks():
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("TRC20 (پیشنهادی)", callback_data="net_usdt_trc20"),
-        InlineKeyboardButton("ERC20", callback_data="net_usdt_erc20"),
-        InlineKeyboardButton("🔙 بازگشت", callback_data="charge_usdt")
+        InlineKeyboardButton("📊 آمار کلی ربات", callback_data="admin_stats"),
+        InlineKeyboardButton("🔙 خروج از پنل", callback_data="main_menu")
     )
     return kb
