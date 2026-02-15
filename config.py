@@ -4,10 +4,10 @@ CARD_NAME = "سجاد رستگاران"
 
 # --- آدرس‌های ولت ارز دیجیتال ---
 WALLETS = {
-    "usdt_trc20": "آدرس_تتر_شبکه_TRC20_شما",
-    "usdt_erc20": "آدرس_تتر_شبکه_ERC20_شما",
-    "trx": "آدرس_ترون_شما",
-    "ton": "آدرس_تون_کوین_شما"
+    "usdt_trc20": "TENYb1BrKZ5E2NsbXGg4Yw2z6UcR7q1Fzq",
+    "usdt_erc20": "0xcf84d4c26269a714664060d32395778b44548268",
+    "trx": "TENYb1BrKZ5E2NsbXGg4Yw2z6UcR7q1Fzq",
+    "ton": "EQChSx9FI4Wyu5hK0sREHh0jyuBx_fwJbfulPrujtv8dENct"
 }
 
 # اگر ادمین‌های دیگری هم دارید، آیدی آن‌ها را اینجا بگذارید (اختیاری)
