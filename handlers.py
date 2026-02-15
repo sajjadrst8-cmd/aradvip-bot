@@ -7,6 +7,21 @@ from database import users_col, invoices_col, plans_col
 import markups as nav
 import config
 from bson import ObjectId
+import aiohttp
+
+async def get_crypto_prices():
+    try:
+        async with aiohttp.ClientSession() as session:
+            # دریافت قیمت تتر به تومان (دلار آزاد)
+            async with session.get("https://api.tala.ir/v1/gold/price") as resp: # یا هر API معتبر دیگر
+                # نکته: برای تست، اینجا قیمت ثابت می‌گذاریم یا از یک API معتبر استفاده می‌کنیم
+                # در اینجا فرض می‌کنیم تتر 70,000 تومان و ترون 12,000 تومان است
+                # برای کد واقعی، آدرس API صرافی را جایگزین کنید
+                tether_price = 70000 
+                trx_price = 14000
+                return tether_price, trx_price
+    except:
+        return 70000, 14000 # قیمت زاپاس در صورت خطا
 
 class BuyState(StatesGroup):
     entering_username = State()
