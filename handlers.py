@@ -220,42 +220,57 @@ async def wallet_main_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer(text, reply_markup=nav.charge_menu(), parse_mode="Markdown")
         await callback.answer()
 
+# ۱. مبلغ دلخواه (بدون تغییر)
 @dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
 async def custom_amount_request(callback: types.CallbackQuery):
     await BuyState.entering_custom_amount.set()
     await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:\n(مثال: 150000)")
     await callback.answer()
 
-
-@dp.callback_query_handler(lambda c: c.data.startswith("charge_") and c.data != "charge_custom", state="*")
+# ۲. اصلاح هندلر شارژ ریالی (فقط اگر بخش دوم عدد بود اجرا شود)
+@dp.callback_query_handler(lambda c: c.data.startswith("charge_") and c.data.split("_")[1].isdigit(), state="*")
 async def process_fixed_charge(callback: types.CallbackQuery, state: FSMContext):
     amount = int(callback.data.split("_")[1])
     await state.update_data(charge_amount=amount)
     await BuyState.waiting_for_receipt.set()
-    
+
     text = (
         f"⏳ **درخواست شارژ: {amount:,} تومان**\n\n"
-        f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
+        f"💳 شماره کارت: <code>{config.CARD_NUMBER}</code>\n"
         f"👤 بنام: **{config.CARD_NAME}**\n\n"
         f"📸 لطفاً پس از واریز، تصویر رسید را ارسال کنید."
     )
     kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("❌ انصراف", callback_data="my_account"))
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await callback.answer()
 
-# --- ۶. فرآیند پرداخت و رسید ---
-@dp.callback_query_handler(lambda c: c.data.startswith("pay_card_"), state="*")
-async def card_payment(callback: types.CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    await BuyState.waiting_for_receipt.set()
+# ۳. هندلر کریپتو (برای مواردی که بخش دوم عدد نیست مثل usdt, trx, ton)
+@dp.callback_query_handler(lambda c: c.data in ["charge_usdt", "charge_trx", "charge_ton"] or c.data.startswith("net_"), state="*")
+async def process_crypto_payment(callback: types.CallbackQuery, state: FSMContext):
+    data = callback.data
+    
+    # انتخاب ولت از config.py بر اساس دیتای دکمه
+    if "usdt" in data:
+        coin, addr = "Tether (USDT)", config.WALLETS["usdt_trc20"]
+    elif "trx" in data:
+        coin, addr = "Tron (TRX)", config.WALLETS["trx"]
+    elif "ton" in data:
+        coin, addr = "TON Coin", config.WALLETS["ton"]
+    else:
+        return await callback.answer("❌ خطا در انتخاب ارز")
+
     text = (
-        f"📌 **راهنمای واریز**\n\n"
-        f"مبلغ **{data.get('price', 0):,} تومان** را واریز کنید:\n"
-        f"💳 شماره کارت: `{config.CARD_NUMBER}`\n"
-        f"👤 بنام: **{config.CARD_NAME}**\n\n"
-        f"📸 رسید را اینجا ارسال کنید."
+        f"💎 **درخواست واریز {coin}**\n\n"
+        f"✅ **آدرس واریز (جهت کپی لمس کنید):**\n"
+        f"<code>{addr}</code>\n\n"
+        f"🎁 **هدیه:** ۲۰٪ شارژ بیشتر برای واریزی‌های کریپتو\n\n"
+        f"📸 پس از واریز، تصویر رسید را همین‌جا بفرستید."
     )
-    await callback.message.answer(text, parse_mode="Markdown")
+    
+    await BuyState.waiting_for_receipt.set()
+    await callback.message.answer(text, parse_mode="HTML")
+    await callback.answer()
+
 
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
 async def handle_receipt(message: types.Message, state: FSMContext):
