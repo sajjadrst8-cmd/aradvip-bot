@@ -145,6 +145,9 @@ async def proceed_to_invoice(message: types.Message, state: FSMContext, username
     price = data.get('price')
     s_type = data.get('s_type')
     plan_name = data.get('plan_name')
+    
+    # برای اطمینان از گرفتن آیدی درست کاربر
+    user_id = message.chat.id 
 
     display_plan = plan_name
     if s_type == "biu":
@@ -154,7 +157,9 @@ async def proceed_to_invoice(message: types.Message, state: FSMContext, username
     elif s_type == "v2ray":
         display_plan = f"V2ray_{plan_name}"
 
-    inv = await add_invoice(message.chat.id, {
+    # ایجاد فاکتور در دیتابیس (مطمئن شو این تابع در database.py درست کار میکند)
+    from database import add_invoice
+    inv = await add_invoice(user_id, {
         'price': price, 'plan': display_plan, 
         'type': s_type, 'username': username
     })
@@ -167,7 +172,9 @@ async def proceed_to_invoice(message: types.Message, state: FSMContext, username
         f"💰 مبلغ: **{price:,} تومان**\n\n"
         f"👇 روش پرداخت را انتخاب کنید:"
     )
-    await bot.send_message(message.chat.id, text, reply_markup=nav.payment_methods(inv['inv_id']), parse_mode="Markdown")
+    
+    # ارسال پیام جدید به جای ادیت کردن (چون پیام قبلی در handle_random_name حذف شده)
+    await bot.send_message(user_id, text, reply_markup=nav.payment_methods(inv['inv_id']), parse_mode="Markdown")
 
 @dp.callback_query_handler(lambda c: c.data.startswith("plan_"), state="*")
 async def ask_username(callback: types.CallbackQuery, state: FSMContext):
