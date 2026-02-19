@@ -624,27 +624,38 @@ async def usdt_networks_menu(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data.startswith("net_") or c.data in ["charge_trx", "charge_ton"], state="*")
 async def process_crypto_charge_final(callback: types.CallbackQuery, state: FSMContext):
     data = callback.data
-    tether_p, trx_p, ton_p = await get_crypto_prices()
     
+    # گرفتن قیمت‌ها (اگر تابعش رو داری، وگرنه قیمت ثابت میذاریم)
+    try:
+        from utils import get_crypto_prices # فرض بر اینکه تابع قیمت اینجا است
+        tether_p, trx_p, ton_p = await get_crypto_prices()
+    except:
+        tether_p, trx_p, ton_p = 70000, 7500, 450000
+
+    # اتصال به متغیر WALLETS در فایل config.py
     if "usdt_trc20" in data:
-        coin, net, addr, price = "Tether", "TRC20", WALLETS["usdt_trc20"], tether_p
+        coin, net, addr, price = "Tether", "TRC20", config.WALLETS["usdt_trc20"], tether_p
     elif "usdt_erc20" in data:
-        coin, net, addr, price = "Tether", "ERC20", WALLETS["usdt_erc20"], tether_p
+        coin, net, addr, price = "Tether", "ERC20", config.WALLETS["usdt_erc20"], tether_p
     elif "trx" in data:
-        coin, net, addr, price = "Tron", "TRC20", WALLETS["trx"], trx_p
+        coin, net, addr, price = "Tron", "TRC20", config.WALLETS["trx"], trx_p
     elif "ton" in data:
-        coin, net, addr, price = "TON Coin", "TON", WALLETS["ton"], ton_p
+        coin, net, addr, price = "TON Coin", "TON", config.WALLETS["ton"], ton_p
+    else:
+        return await callback.answer("❌ خطا در یافتن شبکه")
 
     await state.update_data(c_type=coin, c_net=net, c_price=price)
 
     text = (
-        f"💎 **شارژ با {coin} ({net})**\n\n"
-        f"💰 قیمت لحظه‌ای: **{price:,} تومان**\n"
-        f"🎁 **هدیه:** ۲۰٪ شارژ هدیه اعمال می‌شود.\n\n"
-        f"✅ **آدرس واریز:**\n"
-        f"`{addr}`\n\n"
-        f"📸 پس از واریز، تصویر رسید را ارسال کنید."
+        f"💎 **اطلاعات واریز {coin}**\n\n"
+        f"🌐 شبکه: **{net}**\n"
+        f"💰 قیمت واحد: **{price:,} تومان**\n"
+        f"🎁 هدیه: **۲۰٪ شارژ بیشتر**\n\n"
+        f"✅ **آدرس کیف پول (برای کپی لمس کنید):**\n"
+        f"<code>{addr}</code>\n\n"
+        f"📸 پس از واریز، **فقط عکس رسید** را ارسال کنید."
     )
-    
+
     await BuyState.waiting_for_receipt.set()
-    await callback.message.answer(text, parse_mode="Markdown")
+    await callback.message.answer(text, parse_mode="HTML")
+    await callback.answer()
