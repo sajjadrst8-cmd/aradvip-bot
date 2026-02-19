@@ -211,13 +211,14 @@ async def handle_manual_username(message: types.Message, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data in ["charge_wallet", "charge_crypto"], state="*")
 async def wallet_main_handler(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    text = "💳 **بخش شارژ کیف پول**\n\nلطفاً یک نوع ارز را انتخاب کنید:"
-    await callback.message.edit_text(text, reply_markup=charge_menu()) # دقت کن نام تابع در مارک‌آپ charge_menu است
-    await callback.answer()
-
+    text = "💎 **انتخاب نوع ارز جهت شارژ**\n\nلطفاً یکی از ارزهای زیر را برای پرداخت انتخاب کنید. به واریزی‌های کریپتو ۲۰٪ هدیه تعلق می‌گیرد!"
+    try:
+        await callback.message.edit_text(text, reply_markup=nav.charge_menu(), parse_mode="Markdown")
+        await callback.answer()
     except Exception as e:
-        print(f"Error loading wallet menu: {e}")
-        await callback.answer("خطا در باز کردن منوی شارژ")
+        # اگر ادیت کردن متن با خطا مواجه شد، پیام جدید می‌فرستیم
+        await callback.message.answer(text, reply_markup=nav.charge_menu(), parse_mode="Markdown")
+        await callback.answer()
 
 @dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
 async def custom_amount_request(callback: types.CallbackQuery):
