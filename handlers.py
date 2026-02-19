@@ -246,22 +246,29 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
     amount = data.get('charge_amount') or data.get('price', 0)
     plan_info = data.get('plan_name', 'شارژ کیف پول')
+    
+    # تشخیص هدف واریز
+    # اگر plan_name وجود داشت یعنی خرید سرویس است، در غیر این صورت شارژ حساب
+    purpose = "buy" if data.get('plan_name') else "charge"
 
     await message.answer("✅ رسید شما دریافت شد و برای مدیریت ارسال گردید. لطفاً تا تایید ادمین منتظر بمانید.")
     
+    # در دکمه تایید، کلمه purpose رو هم اضافه میکنیم تا در مرحله بعد ازش استفاده کنیم
     kb = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("✅ تایید و واریز", callback_data=f"admin_ok_{message.from_user.id}_{amount}"),
-        types.InlineKeyboardButton("❌ رد رسید", callback_data=f"admin_no_{message.from_user.id}_0")
+        types.InlineKeyboardButton("✅ تایید و عملیات", callback_data=f"admin_ok_{message.from_user.id}_{amount}_{purpose}"),
+        types.InlineKeyboardButton("❌ رد رسید", callback_data=f"admin_no_{message.from_user.id}_0_none")
     )
     
     caption = (
         f"💰 **رسید جدید جهت بررسی**\n\n"
         f"👤 کاربر: `{message.from_user.id}`\n"
         f"💵 مبلغ: **{amount:,} تومان**\n"
-        f"📝 بابت: `{plan_info}`"
+        f"📝 نوع درخواست: `{'خرید سرویس' if purpose == 'buy' else 'شارژ کیف پول'}`\n"
+        f"📦 جزئیات: `{plan_info}`"
     )
     await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption, reply_markup=kb, parse_mode="Markdown")
     await state.finish()
+
 
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_wallet_"), state="*")
 async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
