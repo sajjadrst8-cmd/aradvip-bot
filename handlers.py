@@ -366,6 +366,12 @@ async def admin_decision(callback: types.CallbackQuery, state: FSMContext):
     
     await callback.answer()
 
+@dp.callback_query_handler(lambda c: c.data.startswith("admin_reject_menu_"), user_id=ADMIN_ID, state="*")
+async def admin_reject_reasons(callback: types.CallbackQuery):
+    user_id = callback.data.split("_")[3]
+    
+    # استفاده از تابعی که توی فایل مارک‌آپ ساختیم
+    await callback.message.edit_reply_markup(reply_markup=nav.admin_reject_reasons_menu(user_id))
 
 # --- حتماً این هندلر را هم بلافاصله بعد از کد بالا اضافه کنید ---
 @dp.message_handler(state="wait_for_config", user_id=ADMIN_ID)
