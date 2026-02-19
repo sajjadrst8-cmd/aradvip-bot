@@ -201,15 +201,17 @@ async def handle_manual_username(message: types.Message, state: FSMContext):
     await proceed_to_invoice(message, state, username)
 
 # --- ۵. بخش شارژ کیف پول (اصلاح شده) ---
-@dp.callback_query_handler(lambda c: c.data == "charge_wallet", state="*")
+@dp.callback_query_handler(lambda c: c.data in ["charge_wallet", "charge_crypto"], state="*")
 async def wallet_main_handler(callback: types.CallbackQuery, state: FSMContext):
-    await state.finish()
+    await state.finish() # پاک کردن استیت‌های قبلی
     text = "💳 **بخش شارژ کیف پول**\n\nلطفاً یک مبلغ را انتخاب کنید یا مبلغ دلخواه خود را وارد کنید:"
     try:
+        try:
         await callback.message.edit_text(text, reply_markup=nav.wallet_charge_menu(), parse_mode="Markdown")
         await callback.answer()
-    except:
-        await callback.answer("خطا در لود منو")
+    except Exception as e:
+        print(f"Error loading wallet menu: {e}")
+        await callback.answer("خطا در باز کردن منوی شارژ")
 
 @dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
 async def custom_amount_request(callback: types.CallbackQuery):
