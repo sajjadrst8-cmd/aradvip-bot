@@ -89,7 +89,7 @@ def admin_panel():
     return kb
 
 def admin_reject_reasons_menu(user_id):
-    kb = types.InlineKeyboardMarkup(row_width=1)
+    kb = InlineKeyboardMarkup(row_width=1) # کلمه types. رو حذف کن
     reasons = [
         ("❌ مبلغ واریزی اشتباه است", "mablagh"),
         ("❌ رسید جعلی یا تکراری است", "fake"),
@@ -97,8 +97,7 @@ def admin_reject_reasons_menu(user_id):
         ("❌ مبلغی به حساب واریز نشده", "not_received")
     ]
     for text, reason_key in reasons:
-        # اینجا دیتای دکمه رو میفرستیم به هندلر نهایی
-        kb.add(types.InlineKeyboardButton(text, callback_data=f"admin_final_no_{user_id}_{reason_key}"))
+        kb.add(InlineKeyboardButton(text, callback_data=f"admin_final_no_{user_id}_{reason_key}")) # کلمه types. رو حذف کن
     
-    kb.add(types.InlineKeyboardButton("🔙 انصراف", callback_data="admin_main_panel"))
+    kb.add(InlineKeyboardButton("🔙 انصراف", callback_data="admin_main_panel"))
     return kb
