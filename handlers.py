@@ -243,17 +243,27 @@ async def card_payment(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
 async def handle_receipt(message: types.Message, state: FSMContext):
+    # دریافت شناسه منحصربه‌فرد عکس (حتی اگر عکس فوروارد شود این شناسه ثابت است)
+    file_unique_id = message.photo[-1].file_unique_id
+    
+    # ۱. بررسی تکراری بودن رسید در دیتابیس
+    if await is_duplicate_receipt(file_unique_id):
+        await message.answer("❌ این رسید قبلاً توسط شخص دیگری در سیستم ثبت شده است!\nلطفاً از ارسال رسیدهای تکراری یا جعلی خودداری کنید.")
+        return
+
     data = await state.get_data()
     amount = data.get('charge_amount') or data.get('price', 0)
     plan_info = data.get('plan_name', 'شارژ کیف پول')
     
-    # تشخیص هدف واریز
-    # اگر plan_name وجود داشت یعنی خرید سرویس است، در غیر این صورت شارژ حساب
+    # تشخیص اینکه کاربر برای خرید آمده یا فقط شارژ حساب
     purpose = "buy" if data.get('plan_name') else "charge"
+
+    # ۲. ذخیره این رسید در دیتابیس برای جلوگیری از استفاده مجدد در آینده
+    await save_receipt(file_unique_id, message.from_user.id)
 
     await message.answer("✅ رسید شما دریافت شد و برای مدیریت ارسال گردید. لطفاً تا تایید ادمین منتظر بمانید.")
     
-    # در دکمه تایید، کلمه purpose رو هم اضافه میکنیم تا در مرحله بعد ازش استفاده کنیم
+    # ساخت دکمه‌ها برای ادمین (حاوی هدفِ واریز: purpose)
     kb = types.InlineKeyboardMarkup().add(
         types.InlineKeyboardButton("✅ تایید و عملیات", callback_data=f"admin_ok_{message.from_user.id}_{amount}_{purpose}"),
         types.InlineKeyboardButton("❌ رد رسید", callback_data=f"admin_no_{message.from_user.id}_0_none")
@@ -264,10 +274,12 @@ async def handle_receipt(message: types.Message, state: FSMContext):
         f"👤 کاربر: `{message.from_user.id}`\n"
         f"💵 مبلغ: **{amount:,} تومان**\n"
         f"📝 نوع درخواست: `{'خرید سرویس' if purpose == 'buy' else 'شارژ کیف پول'}`\n"
-        f"📦 جزئیات: `{plan_info}`"
+        f"📦 جزئیات: `{plan_info}`\n"
+        f"🔑 شناسه رسید: `{file_unique_id}`"
     )
     await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption, reply_markup=kb, parse_mode="Markdown")
     await state.finish()
+
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_wallet_"), state="*")
