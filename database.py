@@ -44,3 +44,18 @@ async def add_invoice(user_id, data):
     }
     await invoices_col.insert_one(invoice)
     return invoice
+
+# این کدها را به انتهای فایل database.py اضافه کن
+async def is_duplicate_receipt(file_unique_id):
+    # چک کردن در کالکشنی به نام receipts (در صورتی که نباشد خودکار ساخته می‌شود)
+    receipts_col = db['receipts'] # فرض بر این است که متغیر db در این فایل تعریف شده
+    exists = await receipts_col.find_one({"file_id": file_unique_id})
+    return True if exists else False
+
+async def save_receipt(file_unique_id, user_id):
+    receipts_col = db['receipts']
+    await receipts_col.insert_one({
+        "file_id": file_unique_id,
+        "user_id": user_id,
+        "date": datetime.datetime.now()
+    })
