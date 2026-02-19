@@ -180,10 +180,17 @@ async def ask_username(callback: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data == "random_name", state=BuyState.entering_username)
 async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
     r_name = generate_random_username()
+    # ذخیره نام در استیت
     await state.update_data(username=r_name)
+    
+    # اطلاع‌رسانی موقت
     await callback.answer(f"✅ نام نهایی شد: {r_name}")
+    
+    # حذف پیام قبلی و رفتن به مرحله صدور فاکتور
     await callback.message.delete()
+    # فراخوانی تابع فاکتور (دقت کن که مسیجِ کال‌بک رو می‌فرستیم)
     await proceed_to_invoice(callback.message, state, r_name)
+
 
 @dp.message_handler(state=BuyState.entering_username)
 async def handle_manual_username(message: types.Message, state: FSMContext):
