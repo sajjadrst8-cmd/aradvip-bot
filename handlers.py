@@ -332,46 +332,75 @@ async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
 
 
 # --- ۷. هندلر ادمین ---
-# --- نسخه نهایی هندلر ادمین (جایگزین کد قبلی شما) ---
-@dp.callback_query_handler(lambda c: c.data.startswith("admin_"), state="*")
+# --- ۱. هندلر اصلی تصمیمات ادمین (تایید یا باز کردن منوی رد) ---
+@dp.callback_query_handler(lambda c: c.data.startswith("admin_"), user_id=ADMIN_ID, state="*")
 async def admin_decision(callback: types.CallbackQuery, state: FSMContext):
     parts = callback.data.split("_")
-    # ساختار جدید دیتای دکمه: admin_ok_USERID_AMOUNT_PURPOSE
-    action, user_id, price, purpose = parts[1], int(parts[2]), int(parts[3]), parts[4]
+    action = parts[1]
     
+    # اگر دکمه تایید زده شده باشد (admin_ok_user_price_purpose)
     if action == "ok":
+        user_id, price, purpose = int(parts[2]), int(parts[3]), parts[4]
+        
         if purpose == "charge":
-            # حالت اول: فقط شارژ کیف پول
+            # فقط شارژ کیف پول
             await users_col.update_one({"user_id": user_id}, {"$inc": {"wallet": price}})
             await bot.send_message(user_id, f"✅ رسید شما تایید شد.\nمبلغ {price:,} تومان به کیف پول شما اضافه شد.")
             await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ تایید و کیف پول شارژ شد.", reply_markup=None)
             
         elif purpose == "buy":
-            # حالت دوم: خرید سرویس (نیاز به ارسال کانفیگ)
+            # خرید سرویس (نیاز به ارسال کانفیگ)
             invoice = await invoices_col.find_one({"user_id": user_id, "status": "🟠 در انتظار"}, sort=[("_id", -1)])
             if invoice:
                 await state.set_state("wait_for_config")
                 await state.update_data(target_user_id=user_id, target_inv_id=invoice['inv_id'], target_price=price)
-                await callback.message.answer(f"✅ رسید خرید تایید شد.\nحالا کانفیگ یا لایسنس رو بفرست تا برای کاربر ارسال بشه:")
+                await callback.message.answer(f"✅ رسید خرید تایید شد.\nحالا کانفیگ یا لایسنس رو ارسال کنید:")
                 await callback.message.edit_reply_markup(reply_markup=None)
             else:
-                # اگر به هر دلیلی فاکتور پیدا نشد، پول رو به ولتش میزنیم که حقش ضایع نشه
                 await users_col.update_one({"user_id": user_id}, {"$inc": {"wallet": price}})
                 await bot.send_message(user_id, f"✅ رسید تایید شد اما فاکتوری یافت نشد؛ مبلغ به کیف پول شما اضافه گشت.")
                 await callback.message.edit_reply_markup(reply_markup=None)
     
+    # اگر دکمه منوی رد زده شده باشد (admin_reject_menu_user)
+    elif action == "reject":
+        user_id = parts[3]
+        await callback.message.edit_reply_markup(reply_markup=nav.admin_reject_reasons_menu(user_id))
+    
+    # این بخش برای دکمه قدیمی 'no' هست (احتیاطی)
     elif action == "no":
-        await bot.send_message(user_id, "❌ رسید واریز شما توسط مدیریت رد شد. در صورت اعتراض با پشتیبانی در ارتباط باشید.")
+        user_id = int(parts[2])
+        await bot.send_message(user_id, "❌ رسید واریز شما توسط مدیریت رد شد.")
         await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ این رسید رد شد.", reply_markup=None)
     
     await callback.answer()
 
-@dp.callback_query_handler(lambda c: c.data.startswith("admin_reject_menu_"), user_id=ADMIN_ID, state="*")
-async def admin_reject_reasons(callback: types.CallbackQuery):
-    user_id = callback.data.split("_")[3]
+# --- ۲. هندلر نهایی رد کردن با دلیل مشخص (admin_final_no_user_reason) ---
+@dp.callback_query_handler(lambda c: c.data.startswith("admin_final_no_"), user_id=ADMIN_ID, state="*")
+async def admin_finish_rejection(callback: types.CallbackQuery):
+    parts = callback.data.split("_")
+    user_id = int(parts[3])
+    reason_key = parts[4]
     
-    # استفاده از تابعی که توی فایل مارک‌آپ ساختیم
-    await callback.message.edit_reply_markup(reply_markup=nav.admin_reject_reasons_menu(user_id))
+    reasons_map = {
+        "mablagh": "مبلغ واریزی با مبلغ فاکتور شما مطابقت ندارد.",
+        "fake": "رسید ارسالی معتبر نیست یا قبلاً استفاده شده است.",
+        "blurry": "تصویر رسید ناخوانا است. لطفاً عکس واضح‌تر بفرستید.",
+        "not_received": "تراکنشی با این مشخصات در حساب مدیریت مشاهده نشد."
+    }
+    
+    reason_text = reasons_map.get(reason_key, "توسط مدیریت تایید نشد.")
+    
+    try:
+        await bot.send_message(user_id, f"⚠️ **رسید شما رد شد!**\n\n💬 دلیل: {reason_text}")
+    except:
+        pass
+        
+    await callback.message.edit_caption(
+        caption=callback.message.caption + f"\n\n❌ رد شد. دلیل: {reason_text}", 
+        reply_markup=None
+    )
+    await callback.answer("پیام رد برای کاربر ارسال شد.")
+
 
 # --- حتماً این هندلر را هم بلافاصله بعد از کد بالا اضافه کنید ---
 @dp.message_handler(state="wait_for_config", user_id=ADMIN_ID)
