@@ -670,3 +670,11 @@ async def perform_broadcast(message: types.Message, state: FSMContext):
         f"🔴 ناموفق: {fail_count}"
     )
 
+@dp.callback_query_handler(lambda c: c.data == 'main_menu', state="*")
+async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish() # بستن تمام استیت‌ها
+    await callback.message.edit_text(
+        f"سلام {callback.from_user.first_name}، به منوی اصلی برگشتید.",
+        reply_markup=nav.main_menu(callback.from_user.id)
+    )
+    await callback.answer()
