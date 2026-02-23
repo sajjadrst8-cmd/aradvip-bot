@@ -2,44 +2,38 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 
 # --- منوی اصلی ---
-# حتما چک کن ADMIN_ID اینجا تعریف شده باشد یا از Loader وارد شده باشد
-ADMIN_ID = 863961919 # آیدی عددی خودت را اینجا بگذار
-
-# در فایل markups.py
-
-def main_menu(user_id): # حتما ورودی user_id را داشته باشد
+def main_menu(user_id=None): # مقدار پیش‌فرض گذاشتم که کرش نکنه
     kb = InlineKeyboardMarkup(row_width=2)
     
-    # ردیف اول
+    # دکمه‌های اصلی که باید برای همه بیاد
     kb.add(InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new"))
-    
-    # ردیف دوم
     kb.add(InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test"))
     
-    # ردیف سوم (دو دکمه در یک ردیف)
+    # چیدمان دوتایی
     kb.row(
         InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"),
         InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invs")
     )
     
-    # ردیف چهارم
     kb.add(InlineKeyboardButton("👤 حساب کاربری", callback_data="my_account"))
     
-    # ردیف پنجم (پشتیبانی و آموزش)
     kb.row(
         InlineKeyboardButton("📞 پشتیبانی", callback_data="support"),
         InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/AradVIPTeaching")
     )
     
-    # ردیف ششم
     kb.add(InlineKeyboardButton("📊 وضعیت سرویس‌ها", url="http://v2inj.galexystore.ir:3001/"))
 
-    # ردیف آخر: مخصوص ادمین (چک کردن با ADMIN_ID که از لودر می آید)
-    from loader import ADMIN_ID
-    if str(user_id) == str(ADMIN_ID):
-        kb.add(InlineKeyboardButton("⚙️ پنل مدیریت", callback_data="admin_panel"))
+    # دکمه ادمین
+    try:
+        from loader import ADMIN_ID
+        if str(user_id) == str(ADMIN_ID):
+            kb.add(InlineKeyboardButton("⚙️ پنل مدیریت", callback_data="admin_panel"))
+    except:
+        pass
         
     return kb
+
 
 
 # --- منوی خرید سرویس ---
