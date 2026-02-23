@@ -168,6 +168,41 @@ async def get_contact(message: types.Message):
         reply_markup=types.ReplyKeyboardRemove()
     )
 
+# --- هندلر ورود به منوی انتخاب نوع تست ---
+@dp.callback_query_handler(lambda c: c.data == 'get_test', state="*")
+async def get_test_menu_handler(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "🎁 **بخش دریافت اشتراک تست رایگان**\n\n"
+        "لطفاً یکی از سرویس‌های زیر را برای دریافت اکانت تست انتخاب کنید:\n"
+        "⚠️ هر کاربر فقط یک‌بار می‌تواند تست دریافت کند.",
+        reply_markup=nav.test_subs_menu(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+# --- هندلر دکمه تست V2ray ---
+@dp.callback_query_handler(lambda c: c.data == 'test_v2ray', state="*")
+async def test_v2ray_handler(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "🚀 **تست سرویس V2ray**\n\n"
+        "آیا برای دریافت اکانت تست ۱ روزه V2ray اطمینان دارید؟",
+        reply_markup=nav.v2ray_test_confirm(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+# --- هندلر دکمه تست Biubiu ---
+@dp.callback_query_handler(lambda c: c.data == 'test_biubiu', state="*")
+async def test_biubiu_handler(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "🛡 **تست سرویس Biubiu VPN**\n\n"
+        "پلان تست بیوبی‌یو (۱ روزه) با مبلغ ۵۰,۰۰۰ تومان قابل فعال‌سازی است.\n"
+        "لطفاً تایید کنید:",
+        reply_markup=nav.biubiu_test_menu(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
 # --- ۲. حساب کاربری و زیرمجموعه ---
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
 async def my_account_handler(callback: types.CallbackQuery, state: FSMContext):
