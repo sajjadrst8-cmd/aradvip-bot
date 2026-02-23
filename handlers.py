@@ -459,3 +459,24 @@ async def renew_request_handler(callback: types.CallbackQuery, state: FSMContext
         f"لطفاً روش پرداخت را انتخاب کنید:",
         reply_markup=nav.payment_methods(inv_id)
     )
+
+@dp.callback_query_handler(lambda c: c.data == "admin_panel", state="*")
+async def admin_panel_handler(callback: types.CallbackQuery):
+    # چک کردن مجدد برای امنیت
+    if callback.from_user.id != ADMIN_ID:
+        return await callback.answer("❌ شما دسترسی به این بخش را ندارید.", show_alert=True)
+
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton(text="📊 آمار کلی", callback_data="admin_stats"),
+        types.InlineKeyboardButton(text="➕ افزودن پلن", callback_data="admin_add_plan"),
+        types.InlineKeyboardButton(text="✉️ پیام همگانی", callback_data="admin_broadcast"),
+        types.InlineKeyboardButton(text="🔍 استعلام کاربر", callback_data="admin_search_user"),
+        types.InlineKeyboardButton(text="🔙 بازگشت", callback_data="main_menu")
+    )
+
+    await callback.message.edit_text(
+        "🛠 به پنل مدیریت خوش آمدید:\nلطفاً یک گزینه را انتخاب کنید:",
+        reply_markup=kb
+    )
+    await callback.answer()
