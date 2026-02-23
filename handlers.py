@@ -184,7 +184,18 @@ async def get_test_menu_handler(callback: types.CallbackQuery):
 from datetime import datetime, timedelta
 
 # این هندلر وقتی کاربر روی "تایید نهایی تست" کلیک می‌کند اجرا می‌شود
-@dp.callback_query_handler(lambda c: c.data == 'confirm_v2ray_test', state="*")
+# این هندلر را قبل از process_test_v2ray_final اضافه کن
+@dp.callback_query_handler(lambda c: c.data == 'test_v2ray', state="*")
+async def ask_v2ray_test_confirmation(callback: types.CallbackQuery):
+    await callback.message.edit_text(
+        "🚀 **درخواست اشتراک تست V2ray**\n\n"
+        "این اشتراک ۲۰۰ مگابایت حجم دارد و به مدت ۲۴ ساعت معتبر است.\n"
+        "آیا مایل به دریافت هستید؟",
+        reply_markup=nav.v2ray_test_confirm(), # این همان تابعی است که دکمه confirm_v2ray_test را دارد
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
 async def process_test_v2ray_final(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     
