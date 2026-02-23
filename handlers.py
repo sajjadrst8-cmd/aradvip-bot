@@ -324,7 +324,13 @@ async def show_config_details(callback: types.CallbackQuery):
     if not sub:
         return await callback.answer("❌ اطلاعات اشتراک یافت نشد.")
 
-    # تولید عکس QR Code
+    # دریافت آمار مصرف از پنل
+    usage_data = await get_marzban_user_usage(sub['username'])
+    if usage_data:
+        used, remaining, total = usage_data
+    else:
+        used, remaining, total = "0", "نامشخص", "نامشخص"
+
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={sub['config_data']}"
     
     caption = (
@@ -332,7 +338,9 @@ async def show_config_details(callback: types.CallbackQuery):
         f"━━━━━━━━━━━━━━━\n"
         f"🟢 وضعیت: **فعال**\n"
         f"👤 نام کاربری: `{sub['username']}`\n"
-        f"📦 پلن: `{sub['plan']}`\n"
+        f"📥 مصرف شده: `{used} GB`\n"
+        f"📤 باقیمانده: `{remaining} GB`\n"
+        f"📦 حجم کل: `{total} GB`\n"
         f"📅 تاریخ ثبت: `{sub['date']}`\n"
         f"━━━━━━━━━━━━━━━\n"
         f"🔗 **لینک اشتراک:**\n"
@@ -344,10 +352,11 @@ async def show_config_details(callback: types.CallbackQuery):
         photo=qr_url, 
         caption=caption, 
         parse_mode="Markdown",
-        reply_markup=nav.sub_details_menu(inv_id) # دکمه بازگشت و تمدید
+        reply_markup=nav.sub_details_menu(inv_id)
     )
     await callback.message.delete()
     await callback.answer()
+
 
 # --- ۷. مشاهده اشتراک‌ها و شارژ فقط با کریپتو ---
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
