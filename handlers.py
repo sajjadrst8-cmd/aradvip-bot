@@ -11,6 +11,26 @@ import markups as nav
 import config
 from bson import ObjectId
 
+async def get_marzban_token():
+    payload = {
+        'username': config.MARZBAN_USER, 
+        'password': config.MARZBAN_PASS
+    }
+    async with aiohttp.ClientSession() as session:
+        try:
+            # ارسال درخواست برای دریافت توکن مدیریت از پنل
+            async with session.post(f"{config.PANEL_URL}/api/admin/token", data=payload) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data['access_token']
+                return None
+        except Exception as e:
+            print(f"Error getting token: {e}")
+            return None
+
+# حالا بقیه کدها که فرستادی شروع می‌شوند:
+# async def create_marzban_user...
+
 # --- توابع اصلی متصل به پنل مرزبان ---
 
 async def create_marzban_user(username, data_gb):
