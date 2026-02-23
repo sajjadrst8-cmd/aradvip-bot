@@ -597,66 +597,102 @@ async def renew_request_handler(callback: types.CallbackQuery, state: FSMContext
         reply_markup=nav.payment_methods(inv_id)
     )
 
+# --- ۱. منوی اصلی پنل مدیریت ---
 @dp.callback_query_handler(lambda c: c.data == "admin_panel", state="*")
-async def admin_panel_handler(callback: types.CallbackQuery):
-    # چک کردن مجدد برای امنیت
-    if callback.from_user.id != ADMIN_ID:
-        return await callback.answer("❌ شما دسترسی به این بخش را ندارید.", show_alert=True)
+async def admin_panel_handler(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    if str(callback.from_user.id) != str(nav.ADMIN_ID):
+        return await callback.answer("❌ عدم دسترسی", show_alert=True)
 
     kb = types.InlineKeyboardMarkup(row_width=2)
     kb.add(
         types.InlineKeyboardButton(text="📊 آمار کلی", callback_data="admin_stats"),
-        types.InlineKeyboardButton(text="➕ افزودن پلن", callback_data="admin_add_plan"),
-        types.InlineKeyboardButton(text="✉️ پیام همگانی", callback_data="admin_broadcast"),
         types.InlineKeyboardButton(text="🔍 استعلام کاربر", callback_data="admin_search_user"),
+        types.InlineKeyboardButton(text="✉️ پیام همگانی", callback_data="admin_broadcast"),
         types.InlineKeyboardButton(text="🔙 بازگشت", callback_data="main_menu")
     )
 
     await callback.message.edit_text(
-        "🛠 به پنل مدیریت خوش آمدید:\nلطفاً یک گزینه را انتخاب کنید:",
-        reply_markup=kb
+        "🛠 **به پنل مدیریت خوش آمدید**\nلطفاً یکی از گزینه‌ها را انتخاب کنید:",
+        reply_markup=kb,
+        parse_mode="Markdown"
     )
     await callback.answer()
 
-# این هندلر وقتی روی دکمه کلیک می‌شود اجرا می‌شود
-@dp.callback_query_handler(lambda c: c.data == "admin_broadcast", state="*")
-async def start_broadcast(callback: types.CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        return
+# --- ۲. آمار کلی ربات ---
+@dp.callback_query_handler(lambda c: c.data == "admin_stats", state="*")
+async def admin_stats_handler(callback: types.CallbackQuery):
+    all_users = await users_col.count_documents({})
+    all_invoices = await invoices_col.count_documents({"status": "paid"})
     
-    await AdminState.waiting_for_broadcast_msg.set()
-    await callback.message.answer("📝 لطفاً پیام خود را ارسال کنید (متن، عکس، فیلم یا هر چیزی):")
+    await callback.message.edit_text(
+        f"📊 **آمار کلی ربات آراد VIP**\n\n"
+        f"👤 تعداد کل کاربران: {all_users}\n"
+        f"💰 تعداد تراکنش‌های موفق: {all_invoices}\n",
+        reply_markup=types.InlineKeyboardMarkup().add(
+            types.InlineKeyboardButton("🔙 بازگشت", callback_data="admin_panel")
+        ),
+        parse_mode="Markdown"
+    )
     await callback.answer()
 
-import asyncio # این را حتماً بالای فایل در بخش ایمپورت‌ها هم چک کنید که باشد
+# --- ۳. استعلام کاربر (جستجو) ---
+@dp.callback_query_handler(lambda c: c.data == "admin_search_user", state="*")
+async def start_user_search(callback: types.CallbackQuery):
+    await AdminState.waiting_for_user_search.set()
+    await callback.message.edit_text("🔍 لطفاً **آیدی عددی** کاربر را ارسال کنید:", parse_mode="Markdown")
+    await callback.answer()
+
+@dp.message_handler(state=AdminState.waiting_for_user_search)
+async def perform_user_search(message: types.Message, state: FSMContext):
+    await state.finish()
+    user_id = message.text
+    
+    if not user_id.isdigit():
+        return await message.answer("❌ آیدی باید فقط عدد باشد.")
+
+    user = await users_col.find_one({"user_id": int(user_id)})
+    if not user:
+        return await message.answer("❌ کاربری با این آیدی یافت نشد.")
+
+    last_test = user.get("last_test_date", "دریافت نشده")
+    info = (
+        f"👤 **اطلاعات کاربر:**\n\n"
+        f"🆔 آیدی عددی: `{user['user_id']}`\n"
+        f"📅 آخرین تست: {last_test}\n"
+        f"💰 موجودی کیف پول: {user.get('balance', 0):,} تومان"
+    )
+    await message.answer(info, parse_mode="Markdown")
+
+# --- ۴. پیام همگانی (ارسال به همه) ---
+@dp.callback_query_handler(lambda c: c.data == "admin_broadcast", state="*")
+async def start_broadcast(callback: types.CallbackQuery):
+    await AdminState.waiting_for_broadcast_msg.set()
+    await callback.message.edit_text("📝 پیام خود را ارسال کنید (لغو با /cancel):")
+    await callback.answer()
 
 @dp.message_handler(state=AdminState.waiting_for_broadcast_msg, content_types=types.ContentTypes.ANY)
 async def perform_broadcast(message: types.Message, state: FSMContext):
+    if message.text == "/cancel":
+        await state.finish()
+        return await message.answer("❌ لغو شد.")
+
     await state.finish()
-    
-    # گرفتن تمام کاربران از دیتابیس
     all_users = await users_col.find().to_list(length=10000)
     
-    success_count = 0
-    fail_count = 0
-    
-    sent_msg = await message.answer(f"⏳ در حال ارسال پیام به {len(all_users)} کاربر...")
+    success, fail = 0, 0
+    sent_msg = await message.answer(f"⏳ در حال ارسال به {len(all_users)} نفر...")
 
     for user in all_users:
         try:
-            # کپی کردن دقیق پیام ادمین برای کاربر
             await message.copy_to(chat_id=user['user_id'])
-            success_count += 1
-            # تاخیر بسیار کوتاه برای جلوگیری از مسدود شدن توسط تلگرام
-            await asyncio.sleep(0.05) 
-        except Exception:
-            fail_count += 1
+            success += 1
+            await asyncio.sleep(0.05)
+        except:
+            fail += 1
 
-    await sent_msg.edit_text(
-        f"✅ ارسال به پایان رسید!\n\n"
-        f"🟢 موفق: {success_count}\n"
-        f"🔴 ناموفق: {fail_count}"
-    )
+    await sent_msg.edit_text(f"✅ پایان ارسال\n🟢 موفق: {success}\n🔴 ناموفق: {fail}")
+
 
 # بازگشت به منوی اصلی و بستن تمام استیت‌ها
 @dp.callback_query_handler(lambda c: c.data == 'main_menu', state="*")
