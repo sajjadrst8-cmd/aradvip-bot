@@ -246,39 +246,42 @@ async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
     price, target_username, plan_name = data.get('price', 0), data.get('username'), data.get('plan_name', '')
 
     if user.get('wallet', 0) >= price:
-        gb_amount = re.findall(r'\d+', plan_name)[0] if re.findall(r'\d+', plan_name) else 10
-        # ساخت مستقیم در مرزبان
-        sub_link = await create_marzban_user(target_username, gb_amount)
+        # استخراج حجم از نام پلن (مثلاً 50GB -> 50)
+        gb_match = re.findall(r'\d+', plan_name)
+        gb_amount = int(gb_match[0]) if gb_match else 10
         
-                if sub_link:
+        # ساخت اکانت در مرزبان
+        sub_link = await create_marzban_user(target_username, gb_amount)
+
+        if sub_link:
+            # کسر از موجودی و ثبت فاکتور
             await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
-            
-            # ثبت فاکتور
             inv_id = os.urandom(4).hex()
+            buy_date = datetime.datetime.now().strftime("%Y/%m/%d")
+            
             await invoices_col.insert_one({
                 "inv_id": inv_id, "user_id": callback.from_user.id, "status": "✅ فعال",
                 "amount": price, "plan": plan_name, "username": target_username,
-                "config_data": sub_link, "date": datetime.datetime.now().strftime("%Y/%m/%d")
+                "config_data": sub_link, "date": buy_date
             })
 
-            # تولید QR Code با استفاده از API رایگان
+            # تولید QR Code
             qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={sub_link}"
 
-            # قالب‌بندی پیام مشابه عکس ارسالی
+            # قالب پیام مشابه عکس ارسالی شما
             caption = (
                 f"📊 **جزئیات اشتراک:**\n"
                 f"━━━━━━━━━━━━━━━\n"
-                f"وضعیت: 🟢 فعال\n"
+                f"🟢 وضعیت: **فعال**\n"
                 f"👤 نام کاربری: `{target_username}`\n"
                 f"📦 پلن: `{plan_name}`\n"
-                f"📅 تاریخ خرید: `{datetime.datetime.now().strftime('%Y/%m/%d')}`\n"
+                f"📅 تاریخ خرید: `{buy_date}`\n"
                 f"━━━━━━━━━━━━━━━\n"
                 f"🔗 **لینک اشتراک:**\n"
                 f"`{sub_link}`\n\n"
-                f"📚 **آموزش وارد کردن لینک اشتراک**"
+                f"🚀 خرید موفقیت‌آمیز بود. برای اتصال از QR Code یا لینک بالا استفاده کنید."
             )
 
-            # ارسال عکس QR Code به همراه مشخصات
             await bot.send_photo(
                 callback.from_user.id, 
                 photo=qr_url, 
@@ -286,8 +289,12 @@ async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
                 parse_mode="Markdown",
                 reply_markup=nav.main_menu()
             )
-            await callback.message.delete() # حذف پیام قبلی فاکتور
+            await callback.message.delete()
             await state.finish()
+        else:
+            await callback.answer("❌ خطا در اتصال به پنل مرزبان!", show_alert=True)
+    else:
+        await callback.answer("❌ موجودی کافی نیست! لطفاً حساب خود را شارژ کنید.", show_alert=True)
 
 
 # نمایش جزئیات کانفیگ و دکمه تمدید
