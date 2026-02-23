@@ -118,11 +118,25 @@ async def get_marzban_user_usage(username):
 @dp.message_handler(commands=['start'], state="*")
 async def start(message: types.Message, state: FSMContext):
     await state.finish()
-    # ارسال آیدی کاربر به تابع کیبورد برای چک کردن ادمین بودن
-    await message.answer(
-        f"سلام {message.from_user.full_name} عزیز خوش آمدید!",
-        reply_markup=nav.main_menu(message.from_user.id)
-    )
+    user_id = message.from_user.id
+    
+    # چک کردن اینکه آیا کاربر قبلاً ثبت‌نام کرده (شماره‌اش در دیتابیس هست؟)
+    user = await users_col.find_one({"user_id": user_id})
+    
+    if user and user.get("phone"):
+        # اگر ثبت نام شده بود، منوی اصلی را بفرست
+        await message.answer(
+            f"سلام {message.from_user.full_name} عزیز، به ربات آراد VIP خوش آمدید!",
+            reply_markup=nav.main_menu(user_id)
+        )
+    else:
+        # اگر ثبت نام نشده بود، درخواست شماره کن
+        await message.answer(
+            "⚠️ برای استفاده از خدمات ربات، ابتدا باید ثبت‌نام کنید.\n\n"
+            "لطفاً با استفاده از دکمه زیر شماره موبایل خود را ارسال کنید 👇",
+            reply_markup=nav.register_menu()
+        )
+
 
 
 # --- ۲. حساب کاربری و زیرمجموعه ---
