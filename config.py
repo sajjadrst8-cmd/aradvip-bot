@@ -3,7 +3,6 @@ import os
 PANEL_URL = os.getenv("PANEL_URL")
 MARZBAN_USER = os.getenv("MARZBAN_USER")
 MARZBAN_PASS = os.getenv("MARZBAN_PASS")
-MARZBAN_LIMIT = int(os.getenv("MARZBAN_LIMIT", 20))
 
 # --- آدرس‌های ولت ارز دیجیتال ---
 WALLETS = {
