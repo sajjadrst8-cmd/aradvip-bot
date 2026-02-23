@@ -110,3 +110,15 @@ def admin_reject_reasons_menu(user_id):
 
     kb.add(InlineKeyboardButton("🔙 انصراف", callback_data="admin_main_panel"))
     return kb
+
+def main_menu(user_id):
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton(text="🛍 خرید اشتراک", callback_data="buy_plan"),
+        InlineKeyboardButton(text="👤 اشتراک‌های من", callback_data="my_subs")
+    )
+    # اگر کاربر جزو لیست ادمین‌ها بود، دکمه پنل را اضافه کن
+    if user_id == ADMIN_ID: # یا لیستی از ادمین‌ها
+        kb.add(InlineKeyboardButton(text="⚙️ پنل مدیریت", callback_data="admin_panel"))
+    
+    return kb
