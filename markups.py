@@ -1,7 +1,7 @@
 ADMIN_ID = 863961919
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-
+admin_verify_payment(inv_id)
 # --- منوی اصلی ---
 def main_menu(user_id):
     kb = InlineKeyboardMarkup(row_width=2)
