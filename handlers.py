@@ -362,15 +362,20 @@ async def show_config_details(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
 async def my_subs_handler(callback: types.CallbackQuery):
     user_id = callback.from_user.id
-    active_subs = await invoices_col.find({"user_id": user_id, "status": "✅ فعال"}).to_list(length=50)
+    active_subs = await invoices_col.find({"user_id": user_id, "status": "✅ فعال"}).to_list(length=100)
+    
     if not active_subs:
         return await callback.answer("❌ شما هیچ اشتراک فعالی ندارید.", show_alert=True)
-
-    kb = types.InlineKeyboardMarkup(row_width=1)
+    
+    kb = InlineKeyboardMarkup(row_width=1)
     for sub in active_subs:
-        kb.add(types.InlineKeyboardButton(f"📦 {sub['plan']}", callback_data=f"show_cfg_{sub['inv_id']}"))
-    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
-    await callback.message.edit_text("📜 لیست اشتراک‌های شما:", reply_markup=kb)
+        # اینجا به جای sub['plan'] از sub['username'] استفاده می‌کنیم
+        kb.add(InlineKeyboardButton(f"👤 اکانت: {sub['username']}", callback_data=f"show_cfg_{sub['inv_id']}"))
+    
+    kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
+    
+    await callback.message.edit_text("📜 لیست اشتراک‌های شما:\n(برای مشاهده جزئیات و لینک اتصال کلیک کنید)", reply_markup=kb)
+
 
 @dp.callback_query_handler(lambda c: c.data == "charge_crypto", state="*")
 async def crypto_menu_handler(callback: types.CallbackQuery):
