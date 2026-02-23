@@ -1,4 +1,5 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+
 
 # --- منوی اصلی ---
 def main_menu():
