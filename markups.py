@@ -3,7 +3,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 # --- منوی اصلی ---
 # حتما چک کن ADMIN_ID اینجا تعریف شده باشد یا از Loader وارد شده باشد
-ADMIN_ID = 12345678 # آیدی عددی خودت را اینجا بگذار
+ADMIN_ID = 863961919 # آیدی عددی خودت را اینجا بگذار
 
 def main_menu(user_id): # اضافه کردن ورودی user_id
     kb = InlineKeyboardMarkup(row_width=2)
