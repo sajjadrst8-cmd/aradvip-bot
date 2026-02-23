@@ -304,14 +304,15 @@ async def show_config_details(callback: types.CallbackQuery):
     sub = await invoices_col.find_one({"inv_id": inv_id})
 
     if not sub:
-        return await callback.answer("❌ رکورد یافت نشد.")
+        return await callback.answer("❌ اطلاعات اشتراک یافت نشد.")
 
+    # تولید عکس QR Code
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={sub['config_data']}"
     
     caption = (
         f"📊 **جزئیات اشتراک:**\n"
         f"━━━━━━━━━━━━━━━\n"
-        f"وضعیت: 🟢 فعال\n"
+        f"🟢 وضعیت: **فعال**\n"
         f"👤 نام کاربری: `{sub['username']}`\n"
         f"📦 پلن: `{sub['plan']}`\n"
         f"📅 تاریخ ثبت: `{sub['date']}`\n"
@@ -325,7 +326,7 @@ async def show_config_details(callback: types.CallbackQuery):
         photo=qr_url, 
         caption=caption, 
         parse_mode="Markdown",
-        reply_markup=nav.sub_details_menu(inv_id)
+        reply_markup=nav.sub_details_menu(inv_id) # دکمه بازگشت و تمدید
     )
     await callback.message.delete()
     await callback.answer()
