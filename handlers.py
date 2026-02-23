@@ -1,36 +1,38 @@
 import random, string, datetime
 import os
+import re
+import aiohttp
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from loader import dp, bot, ADMIN_ID
-from database import users_col, invoices_col, plans_col, get_user, is_duplicate_receipt, save_receipt
+from database import users_col, invoices_col, plans_col, get_user, is_duplicate_receipt, save_receipt, add_invoice
 import markups as nav
 import config
 from bson import ObjectId
-from config import WALLETS, ADMIN_ID
-import aiohttp
+
+# --- توابع اصلی متصل به پنل مرزبان ---
+
+async def get_marzban_token():
+    payload = {'username': config.MARZBAN_USER, 'password': config.MARZBAN_PASS}
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(f"{config.PANEL_URL}/api/admin/token", data=payload) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data['access_token']
+                return None
+        except: return None
 
 async def create_marzban_user(username, data_gb):
     token = await get_marzban_token()
-    if not token: 
-        print("Error: Could not get Marzban Token")
-        return None
-    
+    if not token: return None
     headers = {"Authorization": f"Bearer {token}"}
-    
-    # تبدیل حجم از گیگابایت به بایت
     bytes_limit = int(data_gb) * 1024 * 1024 * 1024
     
-    # تنظیمات دقیق مطابق اسکرین‌شات شما
     payload = {
         "username": username,
-        "proxies": {
-            "vless": {
-                "flow": "xtls-rprx-vision" # دقیقا مطابق فیلد Flow در عکس
-            },
-            "vmess": {} # مطابق عکس Vmess هم فعال است
-        },
+        "proxies": {"vless": {"flow": "xtls-rprx-vision"}, "vmess": {}},
         "inbounds": {
             "vless": [
                 "VLESS TCP VISION NGINX FALLBACK",
@@ -40,72 +42,59 @@ async def create_marzban_user(username, data_gb):
             ]
         },
         "data_limit": bytes_limit,
-        "expire": 0, # خالی بودن Expiry Date در عکس یعنی 0 (نامحدود)
+        "expire": 0,
         "status": "active"
     }
-    
     async with aiohttp.ClientSession() as session:
-        url = f"{config.PANEL_URL}/api/user"
-        async with session.post(url, json=payload, headers=headers) as resp:
+        async with session.post(f"{config.PANEL_URL}/api/user", json=payload, headers=headers) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                return data['subscription_url']
-            else:
-                error_detail = await resp.text()
-                print(f"Marzban API Error: {error_detail}")
-                return None
+                return data.get('subscription_url')
+            return None
 
-
+async def renew_marzban_user(username, extra_gb):
+    token = await get_marzban_token()
+    if not token: return None
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"{config.PANEL_URL}/api/user/{username}", headers=headers) as resp:
+            if resp.status != 200: return None
+            user_data = await resp.json()
+            
+        current_limit = user_data.get('data_limit', 0)
+        new_limit = current_limit + (int(extra_gb) * 1024 * 1024 * 1024)
+        
+        payload = {"data_limit": new_limit, "status": "active"}
+        async with session.put(f"{config.PANEL_URL}/api/user/{username}", json=payload, headers=headers) as resp:
+            return resp.status == 200
 
 async def get_crypto_prices():
     try:
         async with aiohttp.ClientSession() as session:
-            # دریافت قیمت لحظه‌ای تتر از نوبیتکس
             async with session.get("https://api.nobitex.ir/v2/orderbook/USDTIRT") as resp:
                 data = await resp.json()
-                # قیمت‌ها در نوبیتکس به ریال هستند، تقسیم بر 10 می‌کنیم تا تومان شود
                 tether_price = int(data['lastTradePrice']) / 10 
-            
-            # دریافت قیمت لحظه‌ای ترون (TRX)
-            async with session.get("https://api.nobitex.ir/v2/orderbook/TRXUSDT") as resp:
-                data = await resp.json()
-                trx_in_usdt = float(data['lastTradePrice'])
-                trx_price = trx_in_usdt * tether_price
-            
-            # دریافت قیمت لحظه‌ای تون‌کوین (TON)
-            async with session.get("https://api.nobitex.ir/v2/orderbook/TONUSDT") as resp:
-                data = await resp.json()
-                ton_in_usdt = float(data['lastTradePrice'])
-                ton_price = ton_in_usdt * tether_price
-                
-            return int(tether_price), int(trx_price), int(ton_price)
-    except Exception as e:
-        # در صورت بروز خطا در اتصال، این قیمت‌های پیش‌فرض استفاده می‌شوند
-        print(f"Error fetching prices: {e}")
-        return 70000, 14500, 480000 
+            return int(tether_price), 15000, 500000 
+    except: return 70000, 15000, 500000
 
 class BuyState(StatesGroup):
     entering_username = State()
     waiting_for_receipt = State()
     entering_custom_amount = State()
-    waiting_for_test_choice = State() # اضافه شد
 
 def generate_random_username():
     chars = string.ascii_lowercase + string.digits
     random_part = ''.join(random.choice(chars) for _ in range(6))
     return f"AradVIP_{random_part}"
 
-# --- ۱. دستور استارت ---
+# --- ۱. دستور استارت و منوی اصلی ---
 @dp.message_handler(commands=['start'], state="*")
 async def start(message: types.Message, state: FSMContext):
     await state.finish()
-    
     args = message.get_args()
     referrer_id = args if args.isdigit() else None
     await get_user(message.from_user.id, referrer_id)
-    
-    # ارسال دستور حذف کیبورد بزرگ به همراه منوی اصلی در یک پیام
-    # این کد دکمه‌های خرید اشتراک و ... که پایین صفحه چسبیده بودن رو پاک میکنه
     await message.answer(
         "✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
         reply_markup=nav.main_menu()
@@ -118,15 +107,12 @@ async def my_account_handler(callback: types.CallbackQuery, state: FSMContext):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     wallet = user.get('wallet', 0)
     ref_count = user.get('ref_count', 0)
-    
     text = (
         f"👤 **جزئیات حساب کاربری**\n\n"
         f"💰 موجودی کیف پول: **{wallet:,} تومان**\n"
         f"👥 تعداد زیرمجموعه: **{ref_count} نفر**\n\n"
         f"یکی از گزینه‌های زیر را انتخاب کنید:"
     )
-    
-    # اصلاح دکمه شارژ
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("💰 شارژ حساب (ارز دیجیتال)", callback_data="charge_crypto"),
@@ -137,27 +123,22 @@ async def my_account_handler(callback: types.CallbackQuery, state: FSMContext):
 
 @dp.callback_query_handler(lambda c: c.data == "referral_section", state="*")
 async def referral_handler(callback: types.CallbackQuery):
-    user = await users_col.find_one({"user_id": callback.from_user.id})
     bot_info = await bot.get_me()
     invite_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
-    
+    user = await users_col.find_one({"user_id": callback.from_user.id})
     text = (
-        f"💰 **سیستم کسب درآمد (زیرمجموعه‌گیری)**\n\n"
-        f"👥 تعداد زیرمجموعه‌های شما: **{user.get('ref_count', 0)} نفر**\n"
-        f"🎁 پاداش شما: **۱۰٪ از هر خرید زیرمجموعه**\n\n"
-        f"🔗 **لینک دعوت اختصاصی شما:**\n"
-        f"`{invite_link}`"
+        f"💰 **سیستم کسب درآمد**\n\n"
+        f"👥 زیرمجموعه‌های شما: **{user.get('ref_count', 0)} نفر**\n"
+        f"🎁 پاداش: **۱۰٪ از هر خرید**\n\n"
+        f"🔗 **لینک دعوت شما:**\n`{invite_link}`"
     )
-    kb = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("🔙 بازگشت به حساب کاربری", callback_data="my_account")
-    )
+    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="my_account"))
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    await callback.answer()
 
-# --- ۳. خرید سرویس جدید ---
+# --- ۳. انتخاب سرویس و پلن ---
 @dp.callback_query_handler(lambda c: c.data == "buy_new", state="*")
 async def buy_new_handler(callback: types.CallbackQuery):
-    await callback.message.edit_text("لطفاً نوع سرویس مورد نظر خود را انتخاب کنید:", reply_markup=nav.buy_menu())
+    await callback.message.edit_text("لطفاً نوع سرویس مورد نظر را انتخاب کنید:", reply_markup=nav.buy_menu())
 
 @dp.callback_query_handler(lambda c: c.data == "buy_v2ray")
 async def v2ray_list(callback: types.CallbackQuery):
@@ -165,62 +146,7 @@ async def v2ray_list(callback: types.CallbackQuery):
     for text, price, name in config.V2RAY_PLANS:
         kb.add(types.InlineKeyboardButton(text, callback_data=f"plan_v2ray_{price}_{name}"))
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
-    await callback.message.edit_text("🛒 لیست پلن‌های V2ray:", reply_markup=kb)
-
-@dp.callback_query_handler(lambda c: c.data == "buy_biubiu")
-async def biubiu_user_choice(callback: types.CallbackQuery):
-    kb = types.InlineKeyboardMarkup(row_width=2)
-    kb.add(types.InlineKeyboardButton("👤 ۱ کاربره", callback_data="biu_1"),
-           types.InlineKeyboardButton("👥 ۲ کاربره", callback_data="biu_2"))
-    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
-    await callback.message.edit_text("تعداد کاربر اکانت Biubiu را انتخاب کنید:", reply_markup=kb)
-
-@dp.callback_query_handler(lambda c: c.data.startswith("biu_"))
-async def biubiu_plans(callback: types.CallbackQuery):
-    mode = callback.data.split("_")[1]
-    kb = types.InlineKeyboardMarkup(row_width=1)
-    plans = config.BIUBIU_1U_PLANS if mode == "1" else config.BIUBIU_2U_PLANS
-    for text, price, name in plans:
-        kb.add(types.InlineKeyboardButton(text, callback_data=f"plan_biu_{price}_{name}"))
-    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_biubiu"))
-    await callback.message.edit_text("🛒 پلن مورد نظر Biubiu را انتخاب کنید:", reply_markup=kb)
-
-# --- ۴. دریافت نام کاربری و صدور فاکتور ---
-async def proceed_to_invoice(message: types.Message, state: FSMContext, username: str):
-    data = await state.get_data()
-    price = data.get('price')
-    s_type = data.get('s_type')
-    plan_name = data.get('plan_name')
-    
-    # برای اطمینان از گرفتن آیدی درست کاربر
-    user_id = message.chat.id 
-
-    display_plan = plan_name
-    if s_type == "biu":
-        parts = plan_name.split('-')
-        users = "1u" if "1" in parts[0] else "2u"
-        display_plan = f"BiuBiu_{parts[1].lower() if len(parts)>1 else ''}{users}"
-    elif s_type == "v2ray":
-        display_plan = f"V2ray_{plan_name}"
-
-    # ایجاد فاکتور در دیتابیس (مطمئن شو این تابع در database.py درست کار میکند)
-    from database import add_invoice
-    inv = await add_invoice(user_id, {
-        'price': price, 'plan': display_plan, 
-        'type': s_type, 'username': username
-    })
-    
-    text = (
-        f"🧾 **فاکتور پرداخت آراد VIP**\n\n"
-        f"🔹 سرویس: **{s_type.upper()}**\n"
-        f"📦 پلن: `{display_plan}`\n"
-        f"👤 نام کاربری: `{username}`\n"
-        f"💰 مبلغ: **{price:,} تومان**\n\n"
-        f"👇 روش پرداخت را انتخاب کنید:"
-    )
-    
-    # ارسال پیام جدید به جای ادیت کردن (چون پیام قبلی در handle_random_name حذف شده)
-    await bot.send_message(user_id, text, reply_markup=nav.payment_methods(inv['inv_id']), parse_mode="Markdown")
+    await callback.message.edit_text("🛒 لیست پلن‌های V2ray (حجمی):", reply_markup=kb)
 
 @dp.callback_query_handler(lambda c: c.data.startswith("plan_"), state="*")
 async def ask_username(callback: types.CallbackQuery, state: FSMContext):
@@ -230,490 +156,161 @@ async def ask_username(callback: types.CallbackQuery, state: FSMContext):
     kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🎲 انتخاب نام تصادفی", callback_data="random_name"))
     await callback.message.answer("👤 یک نام کاربری (انگلیسی) ارسال کنید یا دکمه زیر را بزنید:", reply_markup=kb)
 
+# --- ۴. صدور فاکتور و دریافت رسید ---
+async def proceed_to_invoice(message: types.Message, state: FSMContext, username: str):
+    data = await state.get_data()
+    price, s_type, plan_name = data.get('price'), data.get('s_type'), data.get('plan_name')
+    user_id = message.chat.id 
+
+    display_plan = f"{s_type.upper()}_{plan_name}"
+    inv = await add_invoice(user_id, {'price': price, 'plan': display_plan, 'type': s_type, 'username': username})
+
+    text = (
+        f"🧾 **فاکتور پرداخت آراد VIP**\n\n"
+        f"📦 پلن: `{display_plan}`\n"
+        f"👤 نام کاربری: `{username}`\n"
+        f"💰 مبلغ: **{price:,} تومان**\n\n"
+        f"👇 روش پرداخت را انتخاب کنید:"
+    )
+    await bot.send_message(user_id, text, reply_markup=nav.payment_methods(inv['inv_id']), parse_mode="Markdown")
+
 @dp.callback_query_handler(lambda c: c.data == "random_name", state=BuyState.entering_username)
 async def handle_random_name(callback: types.CallbackQuery, state: FSMContext):
     r_name = generate_random_username()
-    # ذخیره نام در استیت
     await state.update_data(username=r_name)
-    
-    # اطلاع‌رسانی موقت
-    await callback.answer(f"✅ نام نهایی شد: {r_name}")
-    
-    # حذف پیام قبلی و رفتن به مرحله صدور فاکتور
     await callback.message.delete()
-    # فراخوانی تابع فاکتور (دقت کن که مسیجِ کال‌بک رو می‌فرستیم)
     await proceed_to_invoice(callback.message, state, r_name)
-
 
 @dp.message_handler(state=BuyState.entering_username)
 async def handle_manual_username(message: types.Message, state: FSMContext):
     username = message.text.strip().lower()
     if not username.replace("_", "").isalnum():
-        return await message.answer("❌ نام کاربری فقط باید شامل حروف انگلیسی و عدد باشد.")
+        return await message.answer("❌ نام کاربری فقط شامل حروف انگلیسی و عدد باشد.")
     await state.update_data(username=username)
     await proceed_to_invoice(message, state, username)
 
-# --- ۵. بخش شارژ کیف پول (اصلاح شده) ---
-@dp.callback_query_handler(lambda c: c.data in ["charge_wallet", "charge_crypto"], state="*")
-async def wallet_main_handler(callback: types.CallbackQuery, state: FSMContext):
-    await state.finish()
-    text = "💎 **انتخاب نوع ارز جهت شارژ**\n\nلطفاً یکی از ارزهای زیر را برای پرداخت انتخاب کنید. به واریزی‌های کریپتو ۲۰٪ هدیه تعلق می‌گیرد!"
-    try:
-        await callback.message.edit_text(text, reply_markup=nav.charge_menu(), parse_mode="Markdown")
-        await callback.answer()
-    except Exception as e:
-        # اگر ادیت کردن متن با خطا مواجه شد، پیام جدید می‌فرستیم
-        await callback.message.answer(text, reply_markup=nav.charge_menu(), parse_mode="Markdown")
-        await callback.answer()
-
-# ۱. مبلغ دلخواه (بدون تغییر)
-@dp.callback_query_handler(lambda c: c.data == "charge_custom", state="*")
-async def custom_amount_request(callback: types.CallbackQuery):
-    await BuyState.entering_custom_amount.set()
-    await callback.message.edit_text("✍️ لطفاً مبلغ مورد نظر خود را به **تومان** وارد کنید:\n(مثال: 150000)")
-    await callback.answer()
-
-# ۲. اصلاح هندلر شارژ ریالی (فقط اگر بخش دوم عدد بود اجرا شود)
-@dp.callback_query_handler(lambda c: c.data.startswith("charge_") and c.data.split("_")[1].isdigit(), state="*")
-async def process_fixed_charge(callback: types.CallbackQuery, state: FSMContext):
-    amount = int(callback.data.split("_")[1])
-    await state.update_data(charge_amount=amount)
-    await BuyState.waiting_for_receipt.set()
-
-    text = (
-        f"⏳ **درخواست شارژ: {amount:,} تومان**\n\n"
-        f"💳 شماره کارت: <code>{config.CARD_NUMBER}</code>\n"
-        f"👤 بنام: **{config.CARD_NAME}**\n\n"
-        f"📸 لطفاً پس از واریز، تصویر رسید را ارسال کنید."
-    )
-    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("❌ انصراف", callback_data="my_account"))
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
-    await callback.answer()
-
-# ۳. هندلر کریپتو (برای مواردی که بخش دوم عدد نیست مثل usdt, trx, ton)
-@dp.callback_query_handler(lambda c: c.data in ["charge_usdt", "charge_trx", "charge_ton"] or c.data.startswith("net_"), state="*")
-async def process_crypto_payment(callback: types.CallbackQuery, state: FSMContext):
-    data = callback.data
+# --- ۵. هندلر تایید/رد هوشمند ادمین (متصل به مرزبان) ---
+@dp.callback_query_handler(lambda c: c.data.startswith("admin_"), user_id=ADMIN_ID, state="*")
+async def admin_decision(callback: types.CallbackQuery, state: FSMContext):
+    parts = callback.data.split("_")
+    action, user_id, price, purpose = parts[1], int(parts[2]), int(parts[3]), parts[4]
     
-    # انتخاب ولت از config.py بر اساس دیتای دکمه
-    if "usdt" in data:
-        coin, addr = "Tether (USDT)", config.WALLETS["usdt_trc20"]
-    elif "trx" in data:
-        coin, addr = "Tron (TRX)", config.WALLETS["trx"]
-    elif "ton" in data:
-        coin, addr = "TON Coin", config.WALLETS["ton"]
-    else:
-        return await callback.answer("❌ خطا در انتخاب ارز")
+    if action == "ok":
+        invoice = await invoices_col.find_one({"user_id": user_id, "status": "🟠 در انتظار"}, sort=[("_id", -1)])
+        if not invoice: return await callback.answer("❌ فاکتور یافت نشد")
+        
+        gb = re.findall(r'\d+', invoice['plan'])[0] if re.findall(r'\d+', invoice['plan']) else 10
+        
+        if purpose == "buy":
+            res = await create_marzban_user(invoice['username'], gb)
+            if res:
+                await invoices_col.update_one({"inv_id": invoice['inv_id']}, {"$set": {"status": "✅ فعال", "config_data": res}})
+                await bot.send_message(user_id, f"✅ پرداخت تایید شد!\n👤 یوزر: `{invoice['username']}`\n🔗 لینک:\n`{res}`")
+                await callback.message.edit_caption(caption=callback.message.caption + f"\n\n✅ اکانت {invoice['username']} ساخته شد.")
+            else:
+                await callback.answer("❌ خطا در مرزبان (نام تکراری؟)", show_alert=True)
 
-    text = (
-        f"💎 **درخواست واریز {coin}**\n\n"
-        f"✅ **آدرس واریز (جهت کپی لمس کنید):**\n"
-        f"<code>{addr}</code>\n\n"
-        f"🎁 **هدیه:** ۲۰٪ شارژ بیشتر برای واریزی‌های کریپتو\n\n"
-        f"📸 پس از واریز، تصویر رسید را همین‌جا بفرستید."
-    )
-    
-    await BuyState.waiting_for_receipt.set()
-    await callback.message.answer(text, parse_mode="HTML")
+        elif purpose == "charge":
+            await users_col.update_one({"user_id": user_id}, {"$inc": {"wallet": price}})
+            await bot.send_message(user_id, f"✅ مبلغ {price:,} تومان به کیف پول شما اضافه شد.")
+            await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ کیف پول شارژ شد.")
+
+    elif action == "no":
+        await bot.send_message(user_id, "❌ رسید شما توسط مدیریت رد شد.")
+        await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ رد شد.")
     await callback.answer()
 
-
+# دریافت عکس رسید
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
 async def handle_receipt(message: types.Message, state: FSMContext):
-    # دریافت شناسه منحصربه‌فرد عکس (حتی اگر عکس فوروارد شود این شناسه ثابت است)
     file_unique_id = message.photo[-1].file_unique_id
-    
-    # ۱. بررسی تکراری بودن رسید در دیتابیس
     if await is_duplicate_receipt(file_unique_id):
-        await message.answer("❌ این رسید قبلاً توسط شخص دیگری در سیستم ثبت شده است!\nلطفاً از ارسال رسیدهای تکراری یا جعلی خودداری کنید.")
-        return
+        return await message.answer("❌ این رسید قبلاً ثبت شده است.")
 
     data = await state.get_data()
     amount = data.get('charge_amount') or data.get('price', 0)
-    plan_info = data.get('plan_name', 'شارژ کیف پول')
-    
-    # تشخیص اینکه کاربر برای خرید آمده یا فقط شارژ حساب
     purpose = "buy" if data.get('plan_name') else "charge"
-
-    # ۲. ذخیره این رسید در دیتابیس برای جلوگیری از استفاده مجدد در آینده
-    await save_receipt(file_unique_id, message.from_user.id)
-
-    await message.answer("✅ رسید شما دریافت شد و برای مدیریت ارسال گردید. لطفاً تا تایید ادمین منتظر بمانید.")
-    
-    # ساخت دکمه‌ها برای ادمین (حاوی هدفِ واریز: purpose)
-    kb = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("✅ تایید و عملیات", callback_data=f"admin_ok_{message.from_user.id}_{amount}_{purpose}"),
-        types.InlineKeyboardButton("❌ رد رسید", callback_data=f"admin_no_{message.from_user.id}_0_none")
-    )
-    
-    caption = (
-        f"💰 **رسید جدید جهت بررسی**\n\n"
-        f"👤 کاربر: `{message.from_user.id}`\n"
-        f"💵 مبلغ: **{amount:,} تومان**\n"
-        f"📝 نوع درخواست: `{'خرید سرویس' if purpose == 'buy' else 'شارژ کیف پول'}`\n"
-        f"📦 جزئیات: `{plan_info}`\n"
-        f"🔑 شناسه رسید: `{file_unique_id}`"
-    )
-    await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption, reply_markup=kb, parse_mode="Markdown")
-    await state.finish()
-
-
-
+   
+# --- ۶. پرداخت با کیف پول و سیستم تمدید ---
 @dp.callback_query_handler(lambda c: c.data.startswith("pay_wallet_"), state="*")
 async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     data = await state.get_data()
-    
-    price = data.get('price', 0)
-    plan_name = data.get('plan_name', 'نامشخص')
-    # نام کاربری (چه دستی چه رندوم) در State ذخیره شده است
-    target_username = data.get('username') 
-    
+    price, target_username, plan_name = data.get('price', 0), data.get('username'), data.get('plan_name', '')
+
     if user.get('wallet', 0) >= price:
-        # کسر پول
-        await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
-        
-        # استخراج حجم از نام پلن
-        import re
         gb_amount = re.findall(r'\d+', plan_name)[0] if re.findall(r'\d+', plan_name) else 10
-        
-        # ساخت اکانت
+        # ساخت مستقیم در مرزبان
         sub_link = await create_marzban_user(target_username, gb_amount)
         
         if sub_link:
-            inv_id = os.urandom(4).hex()
+            await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
             await invoices_col.insert_one({
-                "inv_id": inv_id, "user_id": callback.from_user.id, "status": "✅ فعال",
+                "inv_id": os.urandom(4).hex(), "user_id": callback.from_user.id, "status": "✅ فعال",
                 "amount": price, "plan": plan_name, "username": target_username,
                 "config_data": sub_link, "date": datetime.datetime.now().strftime("%Y/%m/%d")
             })
-
-            await callback.message.edit_text(
-                f"✅ **خرید با موفقیت انجام شد!**\n\n"
-                f"👤 نام کاربری: `{target_username}`\n"
-                f"🔗 لینک شما:\n`{sub_link}`", 
-                parse_mode="Markdown"
-            )
+            await callback.message.edit_text(f"✅ خرید موفقیت‌آمیز بود!\n👤 نام کاربری: `{target_username}`\n🔗 لینک اتصال:\n`{sub_link}`")
         else:
-            # بازگشت پول در صورت خطا
-            await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": price}})
-            await callback.message.edit_text("❌ خطای فنی در ساخت اکانت. مبلغ به کیف پول برگشت داده شد.")
+            await callback.answer("❌ خطا در اتصال به پنل مرزبان!", show_alert=True)
         await state.finish()
     else:
-        await callback.answer("❌ موجودی کافی نیست!", show_alert=True)
+        await callback.answer("❌ موجودی کافی نیست! لطفاً از بخش کریپتو شارژ کنید.", show_alert=True)
 
-
-
-
-# --- ۷. هندلر ادمین ---
-# --- ۱. هندلر اصلی تصمیمات ادمین (تایید یا باز کردن منوی رد) ---
-@dp.callback_query_handler(lambda c: c.data.startswith("admin_"), user_id=ADMIN_ID, state="*")
-async def admin_decision(callback: types.CallbackQuery, state: FSMContext):
-    parts = callback.data.split("_")
-    action = parts[1]
-    
-    # اگر دکمه تایید زده شده باشد (admin_ok_user_price_purpose)
-    if action == "ok":
-        user_id, price, purpose = int(parts[2]), int(parts[3]), parts[4]
-        
-        if purpose == "charge":
-            # فقط شارژ کیف پول
-            await users_col.update_one({"user_id": user_id}, {"$inc": {"wallet": price}})
-            await bot.send_message(user_id, f"✅ رسید شما تایید شد.\nمبلغ {price:,} تومان به کیف پول شما اضافه شد.")
-            await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ تایید و کیف پول شارژ شد.", reply_markup=None)
-            
-        elif purpose == "buy":
-            # خرید سرویس (نیاز به ارسال کانفیگ)
-            invoice = await invoices_col.find_one({"user_id": user_id, "status": "🟠 در انتظار"}, sort=[("_id", -1)])
-            if invoice:
-                await state.set_state("wait_for_config")
-                await state.update_data(target_user_id=user_id, target_inv_id=invoice['inv_id'], target_price=price)
-                await callback.message.answer(f"✅ رسید خرید تایید شد.\nحالا کانفیگ یا لایسنس رو ارسال کنید:")
-                await callback.message.edit_reply_markup(reply_markup=None)
-            else:
-                await users_col.update_one({"user_id": user_id}, {"$inc": {"wallet": price}})
-                await bot.send_message(user_id, f"✅ رسید تایید شد اما فاکتوری یافت نشد؛ مبلغ به کیف پول شما اضافه گشت.")
-                await callback.message.edit_reply_markup(reply_markup=None)
-    
-    # اگر دکمه منوی رد زده شده باشد (admin_reject_menu_user)
-    elif action == "reject":
-        user_id = parts[3]
-        await callback.message.edit_reply_markup(reply_markup=nav.admin_reject_reasons_menu(user_id))
-    
-    # این بخش برای دکمه قدیمی 'no' هست (احتیاطی)
-    elif action == "no":
-        user_id = int(parts[2])
-        await bot.send_message(user_id, "❌ رسید واریز شما توسط مدیریت رد شد.")
-        await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ این رسید رد شد.", reply_markup=None)
-    
-    await callback.answer()
-
-# --- ۲. هندلر نهایی رد کردن با دلیل مشخص (admin_final_no_user_reason) ---
-@dp.callback_query_handler(lambda c: c.data.startswith("admin_final_no_"), user_id=ADMIN_ID, state="*")
-async def admin_finish_rejection(callback: types.CallbackQuery):
-    parts = callback.data.split("_")
-    user_id = int(parts[3])
-    reason_key = parts[4]
-    
-    reasons_map = {
-        "mablagh": "مبلغ واریزی با مبلغ فاکتور شما مطابقت ندارد.",
-        "fake": "رسید ارسالی معتبر نیست یا قبلاً استفاده شده است.",
-        "blurry": "تصویر رسید ناخوانا است. لطفاً عکس واضح‌تر بفرستید.",
-        "not_received": "تراکنشی با این مشخصات در حساب مدیریت مشاهده نشد."
-    }
-    
-    reason_text = reasons_map.get(reason_key, "توسط مدیریت تایید نشد.")
-    
-    try:
-        await bot.send_message(user_id, f"⚠️ **رسید شما رد شد!**\n\n💬 دلیل: {reason_text}")
-    except:
-        pass
-        
-    await callback.message.edit_caption(
-        caption=callback.message.caption + f"\n\n❌ رد شد. دلیل: {reason_text}", 
-        reply_markup=None
-    )
-    await callback.answer("پیام رد برای کاربر ارسال شد.")
-
-
-# --- حتماً این هندلر را هم بلافاصله بعد از کد بالا اضافه کنید ---
-@dp.message_handler(state="wait_for_config", user_id=ADMIN_ID)
-async def receive_config_from_admin(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    user_id = data['target_user_id']
-    inv_id = data['target_inv_id']
-    price = data['target_price']
-    config_text = message.text # متن کانفیگ که ادمین فرستاده
-
-    # ۱. آپدیت وضعیت فاکتور و ذخیره کانفیگ در دیتابیس
-    await invoices_col.update_one(
-        {"inv_id": inv_id},
-        {"$set": {"status": "✅ فعال", "config_data": config_text}}
-    )
-
-    # ۲. شارژ کیف پول کاربر
-    await users_col.update_one({"user_id": user_id}, {"$inc": {"wallet": price}})
-
-    # ۳. پیام تایید برای کاربر
-    await bot.send_message(
-        user_id, 
-        f"✅ **اشتراک شما فعال شد!**\n\n💰 مبلغ {price:,} تومان به حساب شما منظور شد.\n🚀 هم‌اکنون می‌توانید از منوی **«اشتراک‌های من»** کانفیگ خود را دریافت کنید."
-    )
-
-    await message.answer("🚀 عالی شد! کانفیگ ثبت شد و اشتراک کاربر فعال گردید.")
-    await state.finish() # خروج از وضعیت انتظار
-
-# --- هندلر سراسری بازگشت به منوی اصلی ---
-@dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
-async def back_to_main_handler(callback: types.CallbackQuery, state: FSMContext):
-    # ۱. تمام وضعیت‌های قبلی (مثل وسط خرید بودن) رو پاک می‌کنه
-    await state.finish()
-    
-    # ۲. متن پیام رو به منوی اصلی تغییر میده
-    try:
-        await callback.message.edit_text(
-            "✨ به منوی اصلی خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
-            reply_markup=nav.main_menu()
-        )
-    except:
-        # اگر پیام تکراری بود و ادیت نشد، فقط انسر میده
-        pass
-        
-    # ۳. ساعتِ شنیِ روی دکمه رو حذف می‌کنه
-    await callback.answer()
-
-# ۱. منوی انتخاب نوع تست
-@dp.callback_query_handler(lambda c: c.data == "get_test", state="*")
-async def get_test_handler(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "🎁 **بخش دریافت اشتراک تست**\nلطفاً نوع اشتراک تست خود را انتخاب کنید:",
-        reply_markup=nav.test_subs_menu(),
-        parse_mode="Markdown"
-    )
-    await callback.answer()
-
-# ۲. بخش V2ray تست (رایگان با محدودیت)
-@dp.callback_query_handler(lambda c: c.data == "test_v2ray", state="*")
-async def test_v2ray_info(callback: types.CallbackQuery):
-    text = (
-        "⚠️ **قوانین اشتراک تست V2ray**\n\n"
-        "هر کاربر در هر ماه فقط یک بار می‌تواند از اشتراک تست استفاده کند.\n"
-        "آیا مایل به دریافت هستید؟"
-    )
-    await callback.message.edit_text(text, reply_markup=nav.v2ray_test_confirm(), parse_mode="Markdown")
-    await callback.answer()
-
-@dp.callback_query_handler(lambda c: c.data == "confirm_v2ray_test", state="*")
-async def confirm_v2ray_test(callback: types.CallbackQuery):
-    # ارسال پیام به کاربر
-    await callback.message.edit_text(
-        "✅ درخواست شما در دست بررسی است و نتیجه به زودی به شما اعلام خواهد شد.",
-        reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
-    )
-    
-    # اطلاع‌رسانی به ادمین
-    await bot.send_message(
-        ADMIN_ID, 
-        f"🆘 **درخواست اشتراک تست V2ray**\n👤 کاربر: `{callback.from_user.id}`\nنام: {callback.from_user.full_name}"
-    )
-    await callback.answer()
-
-# ۳. بخش Biubiu تست (پولی - متصل به چرخه خرید)
-@dp.callback_query_handler(lambda c: c.data == "test_biubiu", state="*")
-async def test_biubiu_info(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "🛒 **اشتراک تست Biubiu**\nلطفاً پلن تست را انتخاب کنید:",
-        reply_markup=nav.biubiu_test_menu()
-    )
-    await callback.answer()
-
-# نکته: دکمه Biubiu به دلیل اینکه با "plan_" شروع می‌شود، 
-# خودکار وارد هندلر ask_username و پروسه پرداخت کارت/کیف پول که قبلاً نوشتیم می‌شود.
-
-# نمایش لیست اشتراک‌های فعال
+# --- ۷. مشاهده اشتراک‌ها و شارژ فقط با کریپتو ---
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
 async def my_subs_handler(callback: types.CallbackQuery):
     user_id = callback.from_user.id
-    # جستجو در کالکشن اینویس‌ها برای موارد فعال
     active_subs = await invoices_col.find({"user_id": user_id, "status": "✅ فعال"}).to_list(length=50)
-    
     if not active_subs:
-        await callback.answer("❌ شما در حال حاضر هیچ اشتراک فعالی ندارید.", show_alert=True)
-        return
+        return await callback.answer("❌ شما هیچ اشتراک فعالی ندارید.", show_alert=True)
 
     kb = types.InlineKeyboardMarkup(row_width=1)
     for sub in active_subs:
-        # نام دکمه برابر با نام پلن خریداری شده
         kb.add(types.InlineKeyboardButton(f"📦 {sub['plan']}", callback_data=f"show_cfg_{sub['inv_id']}"))
-    
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
-    
-    await callback.message.edit_text(
-        "📜 **لیست اشتراک‌های فعال شما**\nبرای مشاهده جزئیات اتصال، یکی را انتخاب کنید:",
-        reply_markup=kb, parse_mode="Markdown"
-    )
+    await callback.message.edit_text("📜 لیست اشتراک‌های شما:", reply_markup=kb)
 
-# نمایش تاریخچه فاکتورها
-@dp.callback_query_handler(lambda c: c.data == "my_invs", state="*")
-async def my_invoices_handler(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    # گرفتن ۱۰ فاکتور آخر کاربر
-    all_invs = await invoices_col.find({"user_id": user_id}).sort("_id", -1).to_list(length=10)
-    
-    if not all_invs:
-        await callback.answer("❓ شما هنوز هیچ فاکتوری ثبت نکرده‌اید.", show_alert=True)
-        return
-
-    text = "🧾 **تاریخچه فاکتورهای شما**\n\n"
-    kb = types.InlineKeyboardMarkup(row_width=1)
-    
-    for inv in all_invs:
-        status = inv['status']
-        text += f"🔹 پلن: `{inv['plan']}`\n💰 مبلغ: {inv['amount']:,} تومان\n📊 وضعیت: {status}\n🗓 تاریخ: {inv['date']}\n\n"
-        
-        # اگر فاکتور پرداخت نشده بود، دکمه پرداخت مجدد ظاهر شود
-        if "انتظار" in status:
-            kb.add(types.InlineKeyboardButton(f"💳 پرداخت فاکتور {inv['plan']}", callback_data=f"repay_{inv['inv_id']}"))
-
-    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-
-# هندلر پرداخت مجدد (اتصال به منوی پرداخت)
-@dp.callback_query_handler(lambda c: c.data.startswith("repay_"), state="*")
-async def repay_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
-    inv_id = callback.data.split("_")[1]
-    inv = await invoices_col.find_one({"inv_id": inv_id})
-    
-    # ذخیره اطلاعات فاکتور در State برای ادامه پروسه خرید
-    await state.update_data(price=inv['amount'], plan_name=inv['plan'], s_type=inv['type'], username=inv['username'])
-    
-    await callback.message.edit_text(
-        f"♻️ **بازآوری فاکتور جهت پرداخت**\nمبلغ: {inv['amount']:,} تومان\nپلن: {inv['plan']}\n\nلطفاً روش پرداخت را انتخاب کنید:",
-        reply_markup=nav.payment_methods(inv_id) # اینجا inv_id برای کارت به کارت استفاده می‌شود
-    )
-
-
-# نمایش جزئیات کانفیگ (وقتی روی دکمه اشتراک کلیک شد)
-@dp.callback_query_handler(lambda c: c.data.startswith("show_cfg_"), state="*")
-async def show_config_details(callback: types.CallbackQuery):
-    inv_id = callback.data.split("_")[2]
-    sub = await invoices_col.find_one({"inv_id": inv_id})
-    
-    text = (
-        f"🚀 **جزئیات اشتراک: {sub['plan']}**\n\n"
-        f"👤 نام کاربری: `{sub['username']}`\n"
-        f"📅 تاریخ ثبت: `{sub['date']}`\n\n"
-        f"🔌 **لینک اتصال (کانفیگ):**\n"
-        f"`{sub.get('config_data', 'در حال آماده‌سازی...')}`"
-    )
-    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت به لیست", callback_data="my_subs"))
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-
-# ورود به پنل ادمین
-@dp.callback_query_handler(lambda c: c.data == "admin_main_panel", user_id=ADMIN_ID)
-async def admin_panel_main(callback: types.CallbackQuery):
-    await callback.message.edit_text("🛠 به پنل مدیریت خوش آمدید.\nیکی از بخش‌ها را انتخاب کنید:", reply_markup=nav.admin_panel())
-
-# آمار کاربران
-@dp.callback_query_handler(lambda c: c.data == "admin_stats", user_id=ADMIN_ID)
-async def admin_stats(callback: types.CallbackQuery):
-    count = await users_col.count_documents({})
-    total_invoices = await invoices_col.count_documents({})
-    await callback.message.edit_text(
-        f"📊 **آمار ربات:**\n\n"
-        f"👥 تعداد کل کاربران: {count}\n"
-        f"🧾 تعداد کل فاکتورها: {total_invoices}",
-        reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="admin_main_panel"))
-    )
-# هندلر ورود به بخش انتخاب نوع ارز
 @dp.callback_query_handler(lambda c: c.data == "charge_crypto", state="*")
-async def crypto_main_menu_handler(callback: types.CallbackQuery):
+async def crypto_menu_handler(callback: types.CallbackQuery):
     await callback.message.edit_text(
-        "💎 **انتخاب نوع ارز جهت شارژ**\n🎁 هدیه: ۲۰٪ حجم اضافه در فاکتور نهایی!", 
+        "💎 **شارژ حساب با ارز دیجیتال**\nلطفاً ارز مورد نظر خود را جهت واریز انتخاب کنید:",
         reply_markup=nav.charge_menu()
     )
 
-# هندلر انتخاب شبکه تتر
-@dp.callback_query_handler(lambda c: c.data == "charge_usdt", state="*")
-async def usdt_networks_menu(callback: types.CallbackQuery):
-    await callback.message.edit_text("لطفاً شبکه انتقال تتر (USDT) را انتخاب کنید:", reply_markup=nav.usdt_networks())
-
-# هندلر نهایی نمایش آدرس و محاسبه‌گر
 @dp.callback_query_handler(lambda c: c.data.startswith("net_") or c.data in ["charge_trx", "charge_ton"], state="*")
-async def process_crypto_charge_final(callback: types.CallbackQuery, state: FSMContext):
+async def crypto_final_step(callback: types.CallbackQuery, state: FSMContext):
     data = callback.data
+    prices = await get_crypto_prices() # [tether, trx, ton]
     
-    # گرفتن قیمت‌ها (اگر تابعش رو داری، وگرنه قیمت ثابت میذاریم)
-    try:
-        from utils import get_crypto_prices # فرض بر اینکه تابع قیمت اینجا است
-        tether_p, trx_p, ton_p = await get_crypto_prices()
-    except:
-        tether_p, trx_p, ton_p = 70000, 7500, 450000
-
-    # اتصال به متغیر WALLETS در فایل config.py
-    if "usdt_trc20" in data:
-        coin, net, addr, price = "Tether", "TRC20", config.WALLETS["usdt_trc20"], tether_p
-    elif "usdt_erc20" in data:
-        coin, net, addr, price = "Tether", "ERC20", config.WALLETS["usdt_erc20"], tether_p
+    if "usdt" in data:
+        coin, addr, price = "Tether (TRC20)", config.WALLETS["usdt_trc20"], prices[0]
     elif "trx" in data:
-        coin, net, addr, price = "Tron", "TRC20", config.WALLETS["trx"], trx_p
+        coin, addr, price = "Tron (TRX)", config.WALLETS["trx"], prices[1]
     elif "ton" in data:
-        coin, net, addr, price = "TON Coin", "TON", config.WALLETS["ton"], ton_p
-    else:
-        return await callback.answer("❌ خطا در یافتن شبکه")
+        coin, addr, price = "TON Coin", config.WALLETS["ton"], prices[2]
+    else: return
 
-    await state.update_data(c_type=coin, c_net=net, c_price=price)
-
+    await state.update_data(charge_amount=price) # قیمت برای یک واحد جهت محاسبه مدیریت
     text = (
-        f"💎 **اطلاعات واریز {coin}**\n\n"
-        f"🌐 شبکه: **{net}**\n"
-        f"💰 قیمت واحد: **{price:,} تومان**\n"
-        f"🎁 هدیه: **۲۰٪ شارژ بیشتر**\n\n"
-        f"✅ **آدرس کیف پول (برای کپی لمس کنید):**\n"
-        f"<code>{addr}</code>\n\n"
-        f"📸 پس از واریز، **فقط عکس رسید** را ارسال کنید."
+        f"💎 **واریز {coin}**\n"
+        f"✅ آدرس واریز:\n`{addr}`\n\n"
+        f"📸 لطفاً پس از واریز، تصویر رسید (Hash یا اسکرین‌شات) را ارسال کنید."
     )
-
     await BuyState.waiting_for_receipt.set()
-    await callback.message.answer(text, parse_mode="HTML")
-    await callback.answer()
+    await callback.message.answer(text, parse_mode="Markdown")
+
+@dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
+async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await callback.message.edit_text("✨ منوی اصلی آراد VIP:", reply_markup=nav.main_menu())
+ 
+    await save_receipt(file_unique_id, message.from_user.id)
+    await message.answer("✅ رسید ارسال شد. منتظر تایید مدیریت بمانید.")
+
+    kb = types.InlineKeyboardMarkup().add(
+        types.InlineKeyboardButton("✅ تایید", callback_data=f"admin_ok_{message.from_user.id}_{amount}_{purpose}"),
+        types.InlineKeyboardButton("❌ رد", callback_data=f"admin_no_{message.from_user.id}_0_none")
+    )
+    await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"💰 رسید جدید\n👤 کاربر: `{message.from_user.id}`\n💵 مبلغ: {amount:,}\nنوع: {purpose}", reply_markup=kb)
+    await state.finish()
