@@ -2,6 +2,7 @@ import random, string, datetime
 import os
 import re
 import aiohttp
+from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
