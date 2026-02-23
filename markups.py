@@ -77,11 +77,13 @@ def usdt_networks():
 # --- مدیریت اشتراک‌ها (دکمه تمدید) ---
 def sub_details_menu(inv_id):
     kb = InlineKeyboardMarkup(row_width=1)
+    # اضافه کردن یک زیرخط اضافه قبل از inv_id برای هماهنگی با split("_")[2]
     kb.add(
         InlineKeyboardButton("♻️ تمدید این اشتراک", callback_data=f"renew_request_{inv_id}"),
         InlineKeyboardButton("🔙 بازگشت به لیست", callback_data="my_subs")
     )
     return kb
+
 
 # --- منوی بخش تست ---
 def test_subs_menu():
