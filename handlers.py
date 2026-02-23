@@ -33,13 +33,8 @@ async def create_marzban_user(username, data_gb):
     payload = {
         "username": username,
         "proxies": {"vless": {"flow": "xtls-rprx-vision"}, "vmess": {}},
-        "inbounds": {
-            "vless": [
-                "VLESS TCP VISION NGINX FALLBACK",
-                "VLESS TCP REALITY (TCP)",
-                "VLESS TCP TUNNEL (TCP)",
-                "VLESS HTTPUPGRADE (WS)"
-            ]
+        "inbounds": {"vless": []},
+
         },
         "data_limit": bytes_limit,
         "expire": 0,
