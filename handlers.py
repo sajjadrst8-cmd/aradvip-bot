@@ -2,7 +2,7 @@ import random, string, datetime
 import os
 import re
 import aiohttp
-from aiogram import types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from loader import dp, bot, ADMIN_ID
@@ -376,19 +376,33 @@ async def show_config_details(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
 async def my_subs_handler(callback: types.CallbackQuery):
     user_id = callback.from_user.id
+    # پیدا کردن اشتراک‌های فعال کاربر از دیتابیس
     active_subs = await invoices_col.find({"user_id": user_id, "status": "✅ فعال"}).to_list(length=100)
     
     if not active_subs:
         return await callback.answer("❌ شما هیچ اشتراک فعالی ندارید.", show_alert=True)
     
-    kb = InlineKeyboardMarkup(row_width=1)
+    # ساخت کیبورد (استفاده از types. برای اطمینان از عدم خطا)
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    
     for sub in active_subs:
-        # اینجا به جای sub['plan'] از sub['username'] استفاده می‌کنیم
-        kb.add(InlineKeyboardButton(f"👤 اکانت: {sub['username']}", callback_data=f"show_cfg_{sub['inv_id']}"))
+        kb.add(types.InlineKeyboardButton(
+            text=f"👤 اکانت: {sub['username']}", 
+            callback_data=f"show_cfg_{sub['inv_id']}"
+        ))
     
-    kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
+    # اضافه کردن دکمه بازگشت که به منوی اصلی برگرده
+    kb.add(types.InlineKeyboardButton(text="🔙 بازگشت به منو", callback_data="main_menu"))
     
-    await callback.message.edit_text("📜 لیست اشتراک‌های شما:\n(برای مشاهده جزئیات و لینک اتصال کلیک کنید)", reply_markup=kb)
+    try:
+        await callback.message.edit_text(
+            "📜 لیست اشتراک‌های شما:\n(برای مشاهده جزئیات و لینک اتصال کلیک کنید)", 
+            reply_markup=kb
+        )
+    except:
+        pass
+    await callback.answer()
+
 
 
 @dp.callback_query_handler(lambda c: c.data == "charge_crypto", state="*")
