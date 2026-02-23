@@ -2,13 +2,13 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # --- منوی اصلی ---
 def main_menu():
-    kb = InlineKeyboardMarkup(row_width=1)
+    kb = InlineKeyboardMarkup(row_width=2)
     kb.add(InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new"))
     kb.add(InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test"))
-    kb.row(InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"), 
+    kb.add(InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"), 
            InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invs"))
     kb.add(InlineKeyboardButton("👤 حساب کاربری", callback_data="my_account"))
-    kb.row(InlineKeyboardButton("📞 پشتیبانی", callback_data="support"), 
+    kb.add(InlineKeyboardButton("📞 پشتیبانی", callback_data="support"), 
            InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/AradVIPTeaching"))
     kb.add(InlineKeyboardButton("📊 وضعیت سرویس‌ها", url="http://v2inj.galexystore.ir:3001/"))
     return kb
@@ -16,8 +16,8 @@ def main_menu():
 # --- منوی خرید سرویس ---
 def buy_menu():
     kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("V2ray(تانل نیم بها+کاربرنامحدود)", callback_data="buy_v2ray"),
-           InlineKeyboardButton("Biubiu VPN", callback_data="buy_biubiu"),
+    kb.add(InlineKeyboardButton("🚀 V2ray (Vision + Reality)", callback_data="buy_v2ray"),
+           InlineKeyboardButton("🛡 Biubiu VPN", callback_data="buy_biubiu"),
            InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
     return kb
 
@@ -25,7 +25,6 @@ def buy_menu():
 def payment_methods(inv_id):
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
-        # دکمه کارت به کارت حذف شد چون سیستم شما الان کریپتو محور شده
         InlineKeyboardButton("💰 پرداخت از موجودی کیف پول", callback_data=f"pay_wallet_{inv_id}"),
         InlineKeyboardButton("💎 شارژ حساب و پرداخت (ارز دیجیتال)", callback_data="charge_crypto"),
         InlineKeyboardButton("❌ لغو و بازگشت", callback_data="main_menu")
@@ -50,6 +49,15 @@ def usdt_networks():
         InlineKeyboardButton("TRC20 (پیشنهادی)", callback_data="net_usdt_trc20"),
         InlineKeyboardButton("ERC20", callback_data="net_usdt_erc20"),
         InlineKeyboardButton("🔙 بازگشت", callback_data="charge_crypto")
+    )
+    return kb
+
+# --- مدیریت اشتراک‌ها (دکمه تمدید) ---
+def sub_details_menu(inv_id):
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        InlineKeyboardButton("♻️ تمدید این اشتراک", callback_data=f"renew_request_{inv_id}"),
+        InlineKeyboardButton("🔙 بازگشت به لیست", callback_data="my_subs")
     )
     return kb
 
@@ -79,17 +87,18 @@ def biubiu_test_menu():
     )
     return kb
 
-# --- پنل مدیریت (برای تکمیل فایل هندلرز) ---
+# --- پنل مدیریت ---
 def admin_panel():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
         InlineKeyboardButton("📊 آمار کلی ربات", callback_data="admin_stats"),
+        InlineKeyboardButton("💰 شارژ دستی کاربر", callback_data="admin_manual_charge"),
         InlineKeyboardButton("🔙 خروج از پنل", callback_data="main_menu")
     )
     return kb
 
 def admin_reject_reasons_menu(user_id):
-    kb = InlineKeyboardMarkup(row_width=1) # کلمه types. رو حذف کن
+    kb = InlineKeyboardMarkup(row_width=1)
     reasons = [
         ("❌ مبلغ واریزی اشتباه است", "mablagh"),
         ("❌ رسید جعلی یا تکراری است", "fake"),
@@ -97,7 +106,7 @@ def admin_reject_reasons_menu(user_id):
         ("❌ مبلغی به حساب واریز نشده", "not_received")
     ]
     for text, reason_key in reasons:
-        kb.add(InlineKeyboardButton(text, callback_data=f"admin_final_no_{user_id}_{reason_key}")) # کلمه types. رو حذف کن
-    
+        kb.add(InlineKeyboardButton(text, callback_data=f"admin_final_no_{user_id}_{reason_key}"))
+
     kb.add(InlineKeyboardButton("🔙 انصراف", callback_data="admin_main_panel"))
     return kb
