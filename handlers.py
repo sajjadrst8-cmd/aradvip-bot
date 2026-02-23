@@ -5,11 +5,7 @@ import aiohttp
 from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
-class AdminState(StatesGroup):
-    waiting_for_broadcast_msg = State()  # این را 
-اضافه کنید
-class AdminState(StatesGroup):
+from aiogram.dispatcher.filters.state import class AdminState(StatesGroup):
     waiting_for_broadcast_msg = State()
     waiting_for_user_search = State()
 from loader import dp, bot, ADMIN_ID
