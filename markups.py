@@ -3,21 +3,32 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 
 # --- منوی اصلی ---
-def main_menu(user_id=None):
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+def main_menu(user_id):
+    # ایجاد کیبورد
     kb = InlineKeyboardMarkup(row_width=2)
     
-    kb.add(InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new"))
-    kb.add(InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test"))
+    # دکمه‌های اصلی که در اسکرین‌شات تو غایب هستند
+    btn1 = InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new")
+    btn2 = InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test")
+    btn3 = InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs")
+    btn4 = InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invs")
+    btn5 = InlineKeyboardButton("👤 حساب کاربری", callback_data="my_account")
+    btn6 = InlineKeyboardButton("📞 پشتیبانی", callback_data="support")
+    btn7 = InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/AradVIPTeaching")
     
-    # بقیه دکمه‌ها را اینجا اضافه کن...
+    # اضافه کردن دکمه‌ها به کیبورد
+    kb.add(btn1, btn2)
+    kb.row(btn3, btn4)
+    kb.add(btn5)
+    kb.row(btn6, btn7)
     
-    # بخش حساس که ارور می‌دهد را با try بپوشان
+    # بخش حساس ادمین (جلوگیری از کرش و نمایش ندادن بقیه دکمه‌ها)
     try:
+        from loader import ADMIN_ID
         if str(user_id) == str(ADMIN_ID):
             kb.add(InlineKeyboardButton("⚙️ پنل مدیریت", callback_data="admin_panel"))
-    except:
-        pass # اگر ADMIN_ID نبود، حداقل ربات کرش نکند
+    except Exception as e:
+        print(f"Admin Check Error: {e}")
         
     return kb
 
