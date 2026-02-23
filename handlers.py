@@ -310,17 +310,16 @@ async def crypto_final_step(callback: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
 async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    await callback.message.edit_text("✨ منوی اصلی آراد VIP:", reply_markup=nav.main_menu())
- 
-    await save_receipt(file_unique_id, message.from_user.id)
-    await message.answer("✅ رسید ارسال شد. منتظر تایید مدیریت بمانید.")
+    try:
+        await callback.message.edit_text(
+            "✨ منوی اصلی آراد VIP:", 
+            reply_markup=nav.main_menu()
+        )
+    except:
+        # این بخش برای جلوگیری از خطا در صورت عدم تغییر متن پیام است
+        pass
+    await callback.answer()
 
-    kb = types.InlineKeyboardMarkup().add(
-        types.InlineKeyboardButton("✅ تایید", callback_data=f"admin_ok_{message.from_user.id}_{amount}_{purpose}"),
-        types.InlineKeyboardButton("❌ رد", callback_data=f"admin_no_{message.from_user.id}_0_none")
-    )
-    await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"💰 رسید جدید\n👤 کاربر: `{message.from_user.id}`\n💵 مبلغ: {amount:,}\nنوع: {purpose}", reply_markup=kb)
-    await state.finish()
 
 # هندلر دکمه تمدید (فرستادن کاربر برای پرداخت)
 @dp.callback_query_handler(lambda c: c.data.startswith("renew_request_"), state="*")
