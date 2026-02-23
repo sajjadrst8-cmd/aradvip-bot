@@ -11,38 +11,34 @@ from bson import ObjectId
 from config import WALLETS, ADMIN_ID
 import aiohttp
 
-async def get_marzban_token():
-    url = f"{config.PANEL_URL}/api/admin/token"
-    data = {"username": config.MARZBAN_USER, "password": config.MARZBAN_PASS}
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(url, data=data) as resp:
-                if resp.status == 200:
-                    res = await resp.json()
-                    return res['access_token']
-                return None
-        except: return None
-
-async def create_marzban_user(username):
+async def create_marzban_user(username, data_gb):
     token = await get_marzban_token()
     if not token: return None
     
     headers = {"Authorization": f"Bearer {token}"}
-    expire = int(datetime.datetime.now().timestamp()) + (30 * 86400) # ۳۰ روزه
-    bytes_limit = config.MARZBAN_LIMIT * 1024 * 1024 * 1024
+    
+    # تبدیل گیگابایت به بایت
+    bytes_limit = int(data_gb) * 1024 * 1024 * 1024
     
     payload = {
         "username": username,
-        "proxies": {"vless": {}, "vmess": {}},
+        "proxies": {
+            "vless": {"flow": "xtls-rprx-vision"}, # اگر پنلت فرق دارد بگو تغییر دهیم
+            "vmess": {}
+        },
         "data_limit": bytes_limit,
-        "expire": expire
+        "expire": 0  # 0 یعنی بدون محدودیت زمانی (Unlimited Time)
     }
+    
     async with aiohttp.ClientSession() as session:
         async with session.post(f"{config.PANEL_URL}/api/user", json=payload, headers=headers) as resp:
             if resp.status == 200:
                 data = await resp.json()
                 return data['subscription_url']
-            return None
+            else:
+                print(f"Marzban API Error: {await resp.text()}")
+                return None
+
 
 async def get_crypto_prices():
     try:
