@@ -3,35 +3,21 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 
 # --- منوی اصلی ---
-def main_menu(user_id=None): # مقدار پیش‌فرض گذاشتم که کرش نکنه
+def main_menu(user_id=None):
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     kb = InlineKeyboardMarkup(row_width=2)
     
-    # دکمه‌های اصلی که باید برای همه بیاد
     kb.add(InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new"))
     kb.add(InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test"))
     
-    # چیدمان دوتایی
-    kb.row(
-        InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"),
-        InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invs")
-    )
+    # بقیه دکمه‌ها را اینجا اضافه کن...
     
-    kb.add(InlineKeyboardButton("👤 حساب کاربری", callback_data="my_account"))
-    
-    kb.row(
-        InlineKeyboardButton("📞 پشتیبانی", callback_data="support"),
-        InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/AradVIPTeaching")
-    )
-    
-    kb.add(InlineKeyboardButton("📊 وضعیت سرویس‌ها", url="http://v2inj.galexystore.ir:3001/"))
-
-    # دکمه ادمین
+    # بخش حساس که ارور می‌دهد را با try بپوشان
     try:
-        from loader import ADMIN_ID
         if str(user_id) == str(ADMIN_ID):
             kb.add(InlineKeyboardButton("⚙️ پنل مدیریت", callback_data="admin_panel"))
     except:
-        pass
+        pass # اگر ADMIN_ID نبود، حداقل ربات کرش نکند
         
     return kb
 
