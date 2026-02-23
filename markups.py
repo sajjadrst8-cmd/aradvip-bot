@@ -3,30 +3,34 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 
 # --- منوی اصلی ---
-def main_menu(user_id=None):
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+def main_menu(user_id):
     kb = InlineKeyboardMarkup(row_width=2)
     
-    # دکمه‌ها را تک‌تک اضافه می‌کنیم تا از سلامت کد مطمئن شویم
+    # دکمه‌های عمومی برای همه
     kb.add(InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new"))
     kb.add(InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test"))
     
     kb.row(
-        InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"),
+        InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"), 
         InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invs")
     )
     
     kb.add(InlineKeyboardButton("👤 حساب کاربری", callback_data="my_account"))
     
     kb.row(
-        InlineKeyboardButton("📞 پشتیبانی", callback_data="support"),
+        InlineKeyboardButton("📞 پشتیبانی", callback_data="support"), 
         InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/AradVIPTeaching")
     )
     
-    # فعلاً شرط ادمین را برداشتم تا فقط ببینیم دکمه‌ها لود می‌شوند یا نه
-    kb.add(InlineKeyboardButton("⚙️ پنل مدیریت (تست)", callback_data="admin_panel"))
+    kb.add(InlineKeyboardButton("📊 وضعیت سرویس‌ها", url="http://v2inj.galexystore.ir:3001/"))
+
+    # --- بخش مدیریت (فقط برای ادمین) ---
+    # حتماً هر دو طرف مقایسه رو به string تبدیل کن که خیالمون راحت باشه
+    if str(user_id) == str(ADMIN_ID):
+        kb.add(InlineKeyboardButton("⚙️ پنل مدیریت", callback_data="admin_panel"))
         
     return kb
+
 
 
 
