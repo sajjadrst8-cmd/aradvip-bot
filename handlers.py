@@ -658,11 +658,24 @@ async def perform_broadcast(message: types.Message, state: FSMContext):
         f"🔴 ناموفق: {fail_count}"
     )
 
+# بازگشت به منوی اصلی و بستن تمام استیت‌ها
 @dp.callback_query_handler(lambda c: c.data == 'main_menu', state="*")
-async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
-    await state.finish() # بستن تمام استیت‌ها
+async def back_to_main_handler(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()  # این خط خیلی مهم است؛ تمام استیت‌های قبلی را می‌بندد
     await callback.message.edit_text(
-        f"سلام {callback.from_user.first_name}، به منوی اصلی برگشتید.",
+        f"سلام {callback.from_user.first_name} عزیز، به منوی اصلی خوش آمدید:",
         reply_markup=nav.main_menu(callback.from_user.id)
     )
     await callback.answer()
+
+# بازگشت به منوی انتخاب تست
+@dp.callback_query_handler(lambda c: c.data == 'get_test', state="*")
+async def back_to_test_menu(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await callback.message.edit_text(
+        "🎁 **بخش دریافت اشتراک تست رایگان**\n\nلطفاً سرویس مورد نظر را انتخاب کنید:",
+        reply_markup=nav.test_subs_menu(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
