@@ -122,3 +122,8 @@ def main_menu(user_id):
         kb.add(InlineKeyboardButton(text="⚙️ پنل مدیریت", callback_data="admin_panel"))
     
     return kb
+
+def register_menu():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.add(KeyboardButton("📲 اشتراک‌گذاری شماره موبایل", request_contact=True))
+    return kb
