@@ -522,3 +522,44 @@ async def admin_panel_handler(callback: types.CallbackQuery):
         reply_markup=kb
     )
     await callback.answer()
+
+# این هندلر وقتی روی دکمه کلیک می‌شود اجرا می‌شود
+@dp.callback_query_handler(lambda c: c.data == "admin_broadcast", state="*")
+async def start_broadcast(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    
+    await AdminState.waiting_for_broadcast_msg.set()
+    await callback.message.answer("📝 لطفاً پیام خود را ارسال کنید (متن، عکس، فیلم یا هر چیزی):")
+    await callback.answer()
+
+import asyncio # این را حتماً بالای فایل در بخش ایمپورت‌ها هم چک کنید که باشد
+
+@dp.message_handler(state=AdminState.waiting_for_broadcast_msg, content_types=types.ContentTypes.ANY)
+async def perform_broadcast(message: types.Message, state: FSMContext):
+    await state.finish()
+    
+    # گرفتن تمام کاربران از دیتابیس
+    all_users = await users_col.find().to_list(length=10000)
+    
+    success_count = 0
+    fail_count = 0
+    
+    sent_msg = await message.answer(f"⏳ در حال ارسال پیام به {len(all_users)} کاربر...")
+
+    for user in all_users:
+        try:
+            # کپی کردن دقیق پیام ادمین برای کاربر
+            await message.copy_to(chat_id=user['user_id'])
+            success_count += 1
+            # تاخیر بسیار کوتاه برای جلوگیری از مسدود شدن توسط تلگرام
+            await asyncio.sleep(0.05) 
+        except Exception:
+            fail_count += 1
+
+    await sent_msg.edit_text(
+        f"✅ ارسال به پایان رسید!\n\n"
+        f"🟢 موفق: {success_count}\n"
+        f"🔴 ناموفق: {fail_count}"
+    )
+
