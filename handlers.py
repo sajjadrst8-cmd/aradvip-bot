@@ -377,22 +377,20 @@ async def show_config_details(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
 async def my_subs_handler(callback: types.CallbackQuery):
     user_id = callback.from_user.id
-    # پیدا کردن اشتراک‌های فعال کاربر
     active_subs = await invoices_col.find({"user_id": user_id, "status": "✅ فعال"}).to_list(length=100)
     
     if not active_subs:
         return await callback.answer("❌ شما هیچ اشتراک فعالی ندارید.", show_alert=True)
     
-    # ساخت کیبورد با استفاده از types برای جلوگیری از NameError
     kb = types.InlineKeyboardMarkup(row_width=1)
     
     for sub in active_subs:
+        # نمایش یوزرنیم به جای حجم طبق درخواست شما
         kb.add(types.InlineKeyboardButton(
             text=f"👤 اکانت: {sub['username']}", 
             callback_data=f"show_cfg_{sub['inv_id']}"
         ))
     
-    # اضافه کردن دکمه بازگشت (متصل به تابع خط 437 کد شما)
     kb.add(types.InlineKeyboardButton(text="🔙 بازگشت به منو", callback_data="main_menu"))
     
     try:
@@ -400,13 +398,9 @@ async def my_subs_handler(callback: types.CallbackQuery):
             "📜 لیست اشتراک‌های شما:\n(برای مشاهده جزئیات و لینک اتصال کلیک کنید)", 
             reply_markup=kb
         )
-    except Exception as e:
-        print(f"Error in my_subs: {e}")
-    
+    except:
+        pass
     await callback.answer()
-
-
-
 
 @dp.callback_query_handler(lambda c: c.data == "charge_crypto", state="*")
 async def crypto_menu_handler(callback: types.CallbackQuery):
