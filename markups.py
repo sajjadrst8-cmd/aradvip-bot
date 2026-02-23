@@ -1,4 +1,4 @@
-ADMIN_ID = 12345678
+ADMIN_ID = 863961919
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 
