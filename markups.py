@@ -2,7 +2,10 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 
 # --- منوی اصلی ---
-def main_menu():
+# حتما چک کن ADMIN_ID اینجا تعریف شده باشد یا از Loader وارد شده باشد
+ADMIN_ID = 12345678 # آیدی عددی خودت را اینجا بگذار
+
+def main_menu(user_id): # اضافه کردن ورودی user_id
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(InlineKeyboardButton("🛍 خرید اشتراک جدید", callback_data="buy_new"))
     kb.add(InlineKeyboardButton("🎁 دریافت اشتراک تست", callback_data="get_test"))
@@ -12,6 +15,11 @@ def main_menu():
     kb.add(InlineKeyboardButton("📞 پشتیبانی", callback_data="support"), 
            InlineKeyboardButton("📚 آموزش اتصال", url="https://t.me/AradVIPTeaching"))
     kb.add(InlineKeyboardButton("📊 وضعیت سرویس‌ها", url="http://v2inj.galexystore.ir:3001/"))
+    
+    # اضافه کردن دکمه ادمین فقط برای شما
+    if str(user_id) == str(ADMIN_ID):
+        kb.add(InlineKeyboardButton("⚙️ پنل مدیریت", callback_data="admin_panel"))
+        
     return kb
 
 # --- منوی خرید سرویس ---
