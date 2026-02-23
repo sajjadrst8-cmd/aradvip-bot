@@ -13,39 +13,31 @@ from bson import ObjectId
 
 # --- توابع اصلی متصل به پنل مرزبان ---
 
-async def get_marzban_token():
-    payload = {'username': config.MARZBAN_USER, 'password': config.MARZBAN_PASS}
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(f"{config.PANEL_URL}/api/admin/token", data=payload) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data['access_token']
-                return None
-        except: return None
-
 async def create_marzban_user(username, data_gb):
     token = await get_marzban_token()
     if not token: return None
+    
     headers = {"Authorization": f"Bearer {token}"}
+    # تبدیل گیگابایت به بایت
     bytes_limit = int(data_gb) * 1024 * 1024 * 1024
     
     payload = {
         "username": username,
         "proxies": {"vless": {"flow": "xtls-rprx-vision"}, "vmess": {}},
-        "inbounds": {"vless": []},
-
-        },
+        "inbounds": {"vless": []}, # استفاده از اینباندهای پیش‌فرض پنل
         "data_limit": bytes_limit,
         "expire": 0,
         "status": "active"
     }
+    
     async with aiohttp.ClientSession() as session:
         async with session.post(f"{config.PANEL_URL}/api/user", json=payload, headers=headers) as resp:
             if resp.status == 200:
                 data = await resp.json()
-                return data.get('subscription_url')
-            return None
+                return data['subscription_url']
+            else:
+                return None
+
 
 async def renew_marzban_user(username, extra_gb):
     token = await get_marzban_token()
