@@ -355,44 +355,53 @@ async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
     username_req = data.get('username', '-')
     
     if user.get('wallet', 0) >= price:
-        # کسر موجودی از کیف پول
+        # ۱. کسر موجودی
         await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
         
-        # ثبت فاکتور به صورت "🟠 در انتظار" در دیتابیس (برای اینکه در لیست فاکتورها بماند تا ادمین تایید کند)
-        # اگر تابع add_invoice را داری از آن استفاده کن، وگرنه مستقیم اینجا اینسرت کن:
-        from database import invoices_col
-        inv_id = os.urandom(4).hex()
-        invoice = {
-            "inv_id": inv_id,
-            "user_id": callback.from_user.id,
-            "status": "🟠 در انتظار", # تا زمانی که ادمین کانفیگ ندهد در انتظار می‌ماند
-            "amount": price,
-            "plan": plan_name,
-            "username": username_req,
-            "date": datetime.datetime.now().strftime("%Y/%m/%d - %H:%M")
-        }
-        await invoices_col.insert_one(invoice)
+        # ۲. ساخت اکانت در مرزبان به صورت خودکار
+        sub_link = await create_marzban_user(username_req)
+        
+        if sub_link:
+            # ۳. ثبت فاکتور به صورت فعال در دیتابیس
+            inv_id = os.urandom(4).hex()
+            invoice = {
+                "inv_id": inv_id,
+                "user_id": callback.from_user.id,
+                "status": "✅ فعال",
+                "amount": price,
+                "plan": plan_name,
+                "username": username_req,
+                "config_data": sub_link,
+                "date": datetime.datetime.now().strftime("%Y/%m/%d - %H:%M")
+            }
+            await invoices_col.insert_one(invoice)
 
-        await callback.message.edit_text("✅ پرداخت با موفقیت از کیف پول انجام شد.\n🚀 سفارش شما برای مدیریت ارسال گردید و بزودی کانفیگ ارسال می‌شود.")
+            # ۴. ارسال لینک به کاربر
+            success_text = (
+                f"✅ **پرداخت با موفقیت انجام شد!**\n\n"
+                f"💰 مبلغ {price:,} تومان از کیف پول شما کسر شد.\n"
+                f"🚀 اشتراک شما آماده است:\n\n"
+                f"🔗 لینک اتصال:\n`{sub_link}`"
+            )
+            await callback.message.edit_text(success_text, parse_mode="Markdown")
+            
+            # ۵. اطلاع‌رسانی به تو (ادمین) که یک فروش خودکار انجام شد
+            admin_msg = (
+                f"💰 **فروش خودکار (کیف پول)**\n\n"
+                f"👤 کاربر: `{callback.from_user.id}`\n"
+                f"📦 پلن: `{plan_name}`\n"
+                f"✅ اکانت با موفقیت ساخته و تحویل شد."
+            )
+            await bot.send_message(ADMIN_ID, admin_msg)
+        else:
+            # اگر به هر دلیلی پنل مرزبان ارور داد، پول را به کیف پول برمی‌گردانیم
+            await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": price}})
+            await callback.message.edit_text("❌ خطا در اتصال به سرور مرزبان. مبلغ به کیف پول شما برگشت داده شد. لطفاً به پشتیبانی پیام دهید.")
         
-        # اطلاع‌رسانی به ادمین با دکمه "ارسال کانفیگ"
-        # استفاده از 0 در قیمت چون قبلاً کسر شده و نیازی به واریز مجدد نیست
-        kb = types.InlineKeyboardMarkup().add(
-            types.InlineKeyboardButton("🚀 ارسال کانفیگ و تکمیل", callback_data=f"admin_ok_{callback.from_user.id}_0")
-        )
-        
-        admin_text = (
-            f"🛍 **خرید جدید با کیف پول**\n\n"
-            f"👤 کاربر: <a href='tg://user?id={callback.from_user.id}'>{callback.from_user.full_name}</a>\n"
-            f"🆔 آیدی: `{callback.from_user.id}`\n"
-            f"📦 پلن: `{plan_name}`\n"
-            f"👤 نام کاربری درخواستی: `{username_req}`\n"
-            f"💰 مبلغ: {price:,} تومان (از کیف پول کسر شد)"
-        )
-        await bot.send_message(ADMIN_ID, admin_text, reply_markup=kb, parse_mode="HTML")
         await state.finish()
     else:
         await callback.answer("❌ موجودی کیف پول شما کافی نیست!", show_alert=True)
+
 
 
 # --- ۷. هندلر ادمین ---
