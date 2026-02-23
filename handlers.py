@@ -181,15 +181,63 @@ async def get_test_menu_handler(callback: types.CallbackQuery):
     await callback.answer()
 
 # --- هندلر دکمه تست V2ray ---
-@dp.callback_query_handler(lambda c: c.data == 'test_v2ray', state="*")
-async def test_v2ray_handler(callback: types.CallbackQuery):
-    await callback.message.edit_text(
-        "🚀 **تست سرویس V2ray**\n\n"
-        "آیا برای دریافت اکانت تست ۱ روزه V2ray اطمینان دارید؟",
-        reply_markup=nav.v2ray_test_confirm(),
-        parse_mode="Markdown"
-    )
+from datetime import datetime, timedelta
+
+# این هندلر وقتی کاربر روی "تایید نهایی تست" کلیک می‌کند اجرا می‌شود
+@dp.callback_query_handler(lambda c: c.data == 'confirm_v2ray_test', state="*")
+async def process_test_v2ray_final(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    
+    # ۱. بررسی محدودیت ۳ ماهه (۹۰ روز)
+    # فرض بر این است که تاریخ آخرین تست را در دیتابیس در فیلد last_test_date ذخیره می‌کنیم
+    user_data = await db.users.find_one({"user_id": user_id}) # نام کالکشن دیتابیس خودت را چک کن
+    
+    if user_data and "last_test_date" in user_data:
+        last_test = user_data["last_test_date"]
+        if datetime.now() < last_test + timedelta(days=90):
+            days_left = (last_test + timedelta(days=90) - datetime.now()).days
+            await callback.answer(f"❌ شما قبلاً تست گرفته‌اید. {days_left} روز دیگر می‌توانید مجدداً تست بگیرید.", show_alert=True)
+            return
+
+    await callback.message.edit_text("⏳ در حال ساخت اکانت ۲۰۰ مگابایتی در پنل مرزبان...")
+
+    # ۲. فراخوانی تابع ساخت اکانت مرزبان که قبلاً نوشتیم
+    # فقط مقدار حجم را روی 200 * 1024 * 1024 (معادل ۲۰۰ مگابایت به بایت) تنظیم می‌کنیم
+    test_volume = 200 * 1024 * 1024 
+    
+    try:
+        # نام این تابع (add_user_marzban) را مطابق با چیزی که قبلاً در کدت داشتی چک کن
+        response = await marzban_api.add_user(
+            username=f"test_{user_id}",
+            data_limit=test_volume,
+            proxies={"vless": {}}, # یا هر پروتکلی که استفاده می‌کنی
+            expire=int((datetime.now() + timedelta(days=1)).timestamp()) # انقضا ۱ روزه
+        )
+
+        if response:
+            # ۳. آپدیت زمان آخرین تست در دیتابیس
+            await db.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"last_test_date": datetime.now()}},
+                upsert=True
+            )
+
+            await callback.message.edit_text(
+                f"✅ **اشتراک تست شما با موفقیت ساخته شد!**\n\n"
+                f"📊 حجم: ۲۰۰ مگابایت\n"
+                f"⏱ اعتبار: ۲۴ ساعت\n\n"
+                f"<code>{response['subscription_url']}</code>",
+                parse_mode="HTML"
+            )
+        else:
+            await callback.message.edit_text("❌ خطا در ساخت اکانت. دوباره تلاش کنید.")
+
+    except Exception as e:
+        print(f"Marzban Test Error: {e}")
+        await callback.message.edit_text("❌ خطا در اتصال به پنل مرزبان.")
+    
     await callback.answer()
+
 
 # --- هندلر دکمه تست Biubiu ---
 @dp.callback_query_handler(lambda c: c.data == 'test_biubiu', state="*")
