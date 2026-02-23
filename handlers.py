@@ -363,57 +363,45 @@ async def handle_receipt(message: types.Message, state: FSMContext):
 async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     data = await state.get_data()
+    
     price = data.get('price', 0)
     plan_name = data.get('plan_name', 'نامشخص')
-    username_req = data.get('username', '-')
+    # نام کاربری (چه دستی چه رندوم) در State ذخیره شده است
+    target_username = data.get('username') 
     
     if user.get('wallet', 0) >= price:
-        # ۱. کسر موجودی
+        # کسر پول
         await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
         
-        # ۲. ساخت اکانت در مرزبان به صورت خودکار
-        sub_link = await create_marzban_user(username_req)
+        # استخراج حجم از نام پلن
+        import re
+        gb_amount = re.findall(r'\d+', plan_name)[0] if re.findall(r'\d+', plan_name) else 10
+        
+        # ساخت اکانت
+        sub_link = await create_marzban_user(target_username, gb_amount)
         
         if sub_link:
-            # ۳. ثبت فاکتور به صورت فعال در دیتابیس
             inv_id = os.urandom(4).hex()
-            invoice = {
-                "inv_id": inv_id,
-                "user_id": callback.from_user.id,
-                "status": "✅ فعال",
-                "amount": price,
-                "plan": plan_name,
-                "username": username_req,
-                "config_data": sub_link,
-                "date": datetime.datetime.now().strftime("%Y/%m/%d - %H:%M")
-            }
-            await invoices_col.insert_one(invoice)
+            await invoices_col.insert_one({
+                "inv_id": inv_id, "user_id": callback.from_user.id, "status": "✅ فعال",
+                "amount": price, "plan": plan_name, "username": target_username,
+                "config_data": sub_link, "date": datetime.datetime.now().strftime("%Y/%m/%d")
+            })
 
-            # ۴. ارسال لینک به کاربر
-            success_text = (
-                f"✅ **پرداخت با موفقیت انجام شد!**\n\n"
-                f"💰 مبلغ {price:,} تومان از کیف پول شما کسر شد.\n"
-                f"🚀 اشتراک شما آماده است:\n\n"
-                f"🔗 لینک اتصال:\n`{sub_link}`"
+            await callback.message.edit_text(
+                f"✅ **خرید با موفقیت انجام شد!**\n\n"
+                f"👤 نام کاربری: `{target_username}`\n"
+                f"🔗 لینک شما:\n`{sub_link}`", 
+                parse_mode="Markdown"
             )
-            await callback.message.edit_text(success_text, parse_mode="Markdown")
-            
-            # ۵. اطلاع‌رسانی به تو (ادمین) که یک فروش خودکار انجام شد
-            admin_msg = (
-                f"💰 **فروش خودکار (کیف پول)**\n\n"
-                f"👤 کاربر: `{callback.from_user.id}`\n"
-                f"📦 پلن: `{plan_name}`\n"
-                f"✅ اکانت با موفقیت ساخته و تحویل شد."
-            )
-            await bot.send_message(ADMIN_ID, admin_msg)
         else:
-            # اگر به هر دلیلی پنل مرزبان ارور داد، پول را به کیف پول برمی‌گردانیم
+            # بازگشت پول در صورت خطا
             await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": price}})
-            await callback.message.edit_text("❌ خطا در اتصال به سرور مرزبان. مبلغ به کیف پول شما برگشت داده شد. لطفاً به پشتیبانی پیام دهید.")
-        
+            await callback.message.edit_text("❌ خطای فنی در ساخت اکانت. مبلغ به کیف پول برگشت داده شد.")
         await state.finish()
     else:
-        await callback.answer("❌ موجودی کیف پول شما کافی نیست!", show_alert=True)
+        await callback.answer("❌ موجودی کافی نیست!", show_alert=True)
+
 
 
 
