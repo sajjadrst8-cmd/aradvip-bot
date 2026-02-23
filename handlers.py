@@ -250,19 +250,45 @@ async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
         # ساخت مستقیم در مرزبان
         sub_link = await create_marzban_user(target_username, gb_amount)
         
-        if sub_link:
+                if sub_link:
             await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
+            
+            # ثبت فاکتور
+            inv_id = os.urandom(4).hex()
             await invoices_col.insert_one({
-                "inv_id": os.urandom(4).hex(), "user_id": callback.from_user.id, "status": "✅ فعال",
+                "inv_id": inv_id, "user_id": callback.from_user.id, "status": "✅ فعال",
                 "amount": price, "plan": plan_name, "username": target_username,
                 "config_data": sub_link, "date": datetime.datetime.now().strftime("%Y/%m/%d")
             })
-            await callback.message.edit_text(f"✅ خرید موفقیت‌آمیز بود!\n👤 نام کاربری: `{target_username}`\n🔗 لینک اتصال:\n`{sub_link}`")
-        else:
-            await callback.answer("❌ خطا در اتصال به پنل مرزبان!", show_alert=True)
-        await state.finish()
-    else:
-        await callback.answer("❌ موجودی کافی نیست! لطفاً از بخش کریپتو شارژ کنید.", show_alert=True)
+
+            # تولید QR Code با استفاده از API رایگان
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={sub_link}"
+
+            # قالب‌بندی پیام مشابه عکس ارسالی
+            caption = (
+                f"📊 **جزئیات اشتراک:**\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"وضعیت: 🟢 فعال\n"
+                f"👤 نام کاربری: `{target_username}`\n"
+                f"📦 پلن: `{plan_name}`\n"
+                f"📅 تاریخ خرید: `{datetime.datetime.now().strftime('%Y/%m/%d')}`\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"🔗 **لینک اشتراک:**\n"
+                f"`{sub_link}`\n\n"
+                f"📚 **آموزش وارد کردن لینک اشتراک**"
+            )
+
+            # ارسال عکس QR Code به همراه مشخصات
+            await bot.send_photo(
+                callback.from_user.id, 
+                photo=qr_url, 
+                caption=caption, 
+                parse_mode="Markdown",
+                reply_markup=nav.main_menu()
+            )
+            await callback.message.delete() # حذف پیام قبلی فاکتور
+            await state.finish()
+
 
 # نمایش جزئیات کانفیگ و دکمه تمدید
 @dp.callback_query_handler(lambda c: c.data.startswith("show_cfg_"), state="*")
@@ -273,16 +299,29 @@ async def show_config_details(callback: types.CallbackQuery):
     if not sub:
         return await callback.answer("❌ رکورد یافت نشد.")
 
-    text = (
-        f"🚀 **جزئیات اشتراک: {sub['plan']}**\n\n"
-        f"👤 نام کاربری: `{sub['username']}`\n"
-        f"📅 تاریخ ثبت: `{sub['date']}`\n\n"
-        f"🔌 **لینک اتصال:**\n"
-        f"`{sub.get('config_data', 'نامشخص')}`"
-    )
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={sub['config_data']}"
     
-    # اینجا از کیبورد جدید استفاده می‌کنیم که دکمه تمدید دارد
-    await callback.message.edit_text(text, reply_markup=nav.sub_details_menu(inv_id), parse_mode="Markdown")
+    caption = (
+        f"📊 **جزئیات اشتراک:**\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"وضعیت: 🟢 فعال\n"
+        f"👤 نام کاربری: `{sub['username']}`\n"
+        f"📦 پلن: `{sub['plan']}`\n"
+        f"📅 تاریخ ثبت: `{sub['date']}`\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"🔗 **لینک اشتراک:**\n"
+        f"`{sub['config_data']}`"
+    )
+
+    await bot.send_photo(
+        callback.from_user.id, 
+        photo=qr_url, 
+        caption=caption, 
+        parse_mode="Markdown",
+        reply_markup=nav.sub_details_menu(inv_id)
+    )
+    await callback.message.delete()
+    await callback.answer()
 
 # --- ۷. مشاهده اشتراک‌ها و شارژ فقط با کریپتو ---
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
