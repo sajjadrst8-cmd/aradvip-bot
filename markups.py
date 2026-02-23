@@ -1,7 +1,14 @@
 ADMIN_ID = 863961919
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-admin_verify_payment(inv_id)
+def admin_verify_payment(invoice_id):
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("✅ تایید و شارژ", callback_data=f"verify_pay_{invoice_id}"),
+        InlineKeyboardButton("❌ رد تراکنش", callback_data=f"reject_pay_{invoice_id}")
+    )
+    return kb
+
 # --- منوی اصلی ---
 def main_menu(user_id):
     kb = InlineKeyboardMarkup(row_width=2)
@@ -30,10 +37,6 @@ def main_menu(user_id):
         kb.add(InlineKeyboardButton("⚙️ پنل مدیریت", callback_data="admin_panel"))
         
     return kb
-
-
-
-
 
 # --- منوی خرید سرویس ---
 def buy_menu():
