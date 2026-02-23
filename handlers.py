@@ -240,16 +240,40 @@ async def process_test_v2ray_final(callback: types.CallbackQuery):
 
 
 # --- هندلر دکمه تست Biubiu ---
-@dp.callback_query_handler(lambda c: c.data == 'test_biubiu', state="*")
-async def test_biubiu_handler(callback: types.CallbackQuery):
+@dp.callback_query_handler(lambda c: c.data == 'plan_biu_50000_1DayTest', state="*")
+async def process_biubiu_test_invoice(callback: types.CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    amount = 50000 # مبلغی که در مارک‌آپ گذاشتید
+    plan_name = "تست ۱ روزه Biubiu"
+    
+    # ۱. ایجاد یک ID منحصر به فرد برای فاکتور
+    import random
+    inv_id = f"INV{random.randint(10000, 99999)}"
+    
+    # ۲. ثبت فاکتور در دیتابیس (بخش فاکتورهای منتظر پرداخت)
+    new_invoice = {
+        "user_id": user_id,
+        "inv_id": inv_id,
+        "amount": amount,
+        "plan": plan_name,
+        "status": "pending",
+        "date": datetime.now(),
+        "type": "biubiu"
+    }
+    await db.invoices.insert_one(new_invoice) # نام کالکشن فاکتورها را چک کنید
+
+    # ۳. هدایت کاربر به صفحه انتخاب روش پرداخت
     await callback.message.edit_text(
-        "🛡 **تست سرویس Biubiu VPN**\n\n"
-        "پلان تست بیوبی‌یو (۱ روزه) با مبلغ ۵۰,۰۰۰ تومان قابل فعال‌سازی است.\n"
-        "لطفاً تایید کنید:",
-        reply_markup=nav.biubiu_test_menu(),
+        f"🧾 **فاکتور پرداخت صادر شد**\n\n"
+        f"👤 کاربر: {callback.from_user.full_name}\n"
+        f"📦 سرویس: {plan_name}\n"
+        f"💰 مبلغ قابل پرداخت: {amount:,} تومان\n\n"
+        "لطفاً روش پرداخت را انتخاب کنید:",
+        reply_markup=nav.payment_methods(inv_id), # متد پرداخت که inv_id می‌گیرد
         parse_mode="Markdown"
     )
     await callback.answer()
+
 
 # --- ۲. حساب کاربری و زیرمجموعه ---
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
