@@ -261,58 +261,64 @@ async def handle_receipt(message: types.Message, state: FSMContext):
 async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
     user = await users_col.find_one({"user_id": callback.from_user.id})
     data = await state.get_data()
-    price, target_username, plan_name = data.get('price', 0), data.get('username'), data.get('plan_name', '')
+    
+    price = data.get('price', 0)
+    target_username = data.get('username')
+    plan_name = data.get('plan_name', '')
+    service_type = data.get('s_type') # این متغیر مشخص می‌کند v2ray است یا biubiu
 
-    if user.get('wallet', 0) >= price:
-        # استخراج حجم از نام پلن (مثلاً 50GB -> 50)
+    if user.get('wallet', 0) < price:
+        return await callback.answer("❌ موجودی کافی نیست!", show_alert=True)
+
+    # --- مسیر اول: اگر سرویس V2ray باشد (اتصال به مرزبان) ---
+    if service_type == "v2ray":
         gb_match = re.findall(r'\d+', plan_name)
         gb_amount = int(gb_match[0]) if gb_match else 10
         
-        # ساخت اکانت در مرزبان
         sub_link = await create_marzban_user(target_username, gb_amount)
-
-        if sub_link:
-            # کسر از موجودی و ثبت فاکتور
-            await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
-            inv_id = os.urandom(4).hex()
-            buy_date = datetime.datetime.now().strftime("%Y/%m/%d")
+        
+        if not sub_link:
+            return await callback.answer("❌ خطا در اتصال به پنل مرزبان!", show_alert=True)
             
-            await invoices_col.insert_one({
-                "inv_id": inv_id, "user_id": callback.from_user.id, "status": "✅ فعال",
-                "amount": price, "plan": plan_name, "username": target_username,
-                "config_data": sub_link, "date": buy_date
-            })
+        final_link = sub_link
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={final_link}"
 
-            # تولید QR Code
-            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={sub_link}"
-
-            # قالب پیام مشابه عکس ارسالی شما
-            caption = (
-                f"📊 **جزئیات اشتراک:**\n"
-                f"━━━━━━━━━━━━━━━\n"
-                f"🟢 وضعیت: **فعال**\n"
-                f"👤 نام کاربری: `{target_username}`\n"
-                f"📦 پلن: `{plan_name}`\n"
-                f"📅 تاریخ خرید: `{buy_date}`\n"
-                f"━━━━━━━━━━━━━━━\n"
-                f"🔗 **لینک اشتراک:**\n"
-                f"`{sub_link}`\n\n"
-                f"🚀 خرید موفقیت‌آمیز بود. برای اتصال از QR Code یا لینک بالا استفاده کنید."
-            )
-
-            await bot.send_photo(
-                callback.from_user.id, 
-                photo=qr_url, 
-                caption=caption, 
-                parse_mode="Markdown",
-                reply_markup=nav.main_menu()
-            )
-            await callback.message.delete()
-            await state.finish()
-        else:
-            await callback.answer("❌ خطا در اتصال به پنل مرزبان!", show_alert=True)
+    # --- مسیر دوم: اگر سرویس Biubiu باشد (دریافت از دیتابیس یا متن ثابت) ---
     else:
-        await callback.answer("❌ موجودی کافی نیست! لطفاً حساب خود را شارژ کنید.", show_alert=True)
+        # اینجا می‌توانید لینک دانلود Biubiu یا کد اشتراک آن را قرار دهید
+        final_link = "لینک یا کد اشتراک Biubiu شما" 
+        qr_url = None # برای بیو بیو شاید QR نیاز نباشد
+
+    # --- ثبت در دیتابیس و کسر موجودی (مشترک برای هر دو) ---
+    await users_col.update_one({"user_id": callback.from_user.id}, {"$inc": {"wallet": -price}})
+    inv_id = os.urandom(4).hex()
+    buy_date = datetime.datetime.now().strftime("%Y/%m/%d")
+    
+    await invoices_col.insert_one({
+        "inv_id": inv_id, "user_id": callback.from_user.id, "status": "✅ فعال",
+        "amount": price, "plan": plan_name, "username": target_username,
+        "config_data": final_link, "date": buy_date, "type": service_type
+    })
+
+    # ارسال خروجی به کاربر
+    caption = (
+        f"🛍 **خرید موفقیت‌آمیز سرویس {service_type.upper()}**\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"👤 نام کاربری: `{target_username}`\n"
+        f"📦 پلن: `{plan_name}`\n"
+        f"📅 تاریخ: `{buy_date}`\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"🔑 کد/لینک اتصال:\n`{final_link}`"
+    )
+
+    if qr_url:
+        await bot.send_photo(callback.from_user.id, photo=qr_url, caption=caption, parse_mode="Markdown", reply_markup=nav.main_menu())
+    else:
+        await bot.send_message(callback.from_user.id, caption, parse_mode="Markdown", reply_markup=nav.main_menu())
+
+    await callback.message.delete()
+    await state.finish()
+
 
 
 # نمایش جزئیات کانفیگ و دکمه تمدید
