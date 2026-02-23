@@ -118,13 +118,12 @@ async def get_marzban_user_usage(username):
 @dp.message_handler(commands=['start'], state="*")
 async def start(message: types.Message, state: FSMContext):
     await state.finish()
-    args = message.get_args()
-    referrer_id = args if args.isdigit() else None
-    await get_user(message.from_user.id, referrer_id)
+    # ارسال آیدی کاربر به تابع کیبورد برای چک کردن ادمین بودن
     await message.answer(
-        "✨ به ربات آراد VIP خوش آمدید\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:", 
-        reply_markup=nav.main_menu()
+        f"سلام {message.from_user.full_name} عزیز خوش آمدید!",
+        reply_markup=nav.main_menu(message.from_user.id)
     )
+
 
 # --- ۲. حساب کاربری و زیرمجموعه ---
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
