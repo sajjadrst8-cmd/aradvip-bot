@@ -257,6 +257,26 @@ async def wallet_payment(callback: types.CallbackQuery, state: FSMContext):
     else:
         await callback.answer("❌ موجودی کافی نیست! لطفاً از بخش کریپتو شارژ کنید.", show_alert=True)
 
+# نمایش جزئیات کانفیگ و دکمه تمدید
+@dp.callback_query_handler(lambda c: c.data.startswith("show_cfg_"), state="*")
+async def show_config_details(callback: types.CallbackQuery):
+    inv_id = callback.data.split("_")[2]
+    sub = await invoices_col.find_one({"inv_id": inv_id})
+
+    if not sub:
+        return await callback.answer("❌ رکورد یافت نشد.")
+
+    text = (
+        f"🚀 **جزئیات اشتراک: {sub['plan']}**\n\n"
+        f"👤 نام کاربری: `{sub['username']}`\n"
+        f"📅 تاریخ ثبت: `{sub['date']}`\n\n"
+        f"🔌 **لینک اتصال:**\n"
+        f"`{sub.get('config_data', 'نامشخص')}`"
+    )
+    
+    # اینجا از کیبورد جدید استفاده می‌کنیم که دکمه تمدید دارد
+    await callback.message.edit_text(text, reply_markup=nav.sub_details_menu(inv_id), parse_mode="Markdown")
+
 # --- ۷. مشاهده اشتراک‌ها و شارژ فقط با کریپتو ---
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
 async def my_subs_handler(callback: types.CallbackQuery):
@@ -314,3 +334,27 @@ async def back_to_main(callback: types.CallbackQuery, state: FSMContext):
     )
     await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"💰 رسید جدید\n👤 کاربر: `{message.from_user.id}`\n💵 مبلغ: {amount:,}\nنوع: {purpose}", reply_markup=kb)
     await state.finish()
+
+# هندلر دکمه تمدید (فرستادن کاربر برای پرداخت)
+@dp.callback_query_handler(lambda c: c.data.startswith("renew_request_"), state="*")
+async def renew_request_handler(callback: types.CallbackQuery, state: FSMContext):
+    inv_id = callback.data.split("_")[2]
+    sub = await invoices_col.find_one({"inv_id": inv_id})
+    
+    # ذخیره اطلاعات قبلی در استیت برای فاکتور جدید
+    # مبلغ را از پلن قبلی برمی‌داریم (یا می‌توانید پلن جدید بپرسید، فعلاً طبق همان قبلی جلو می‌رود)
+    await state.update_data(
+        price=sub['amount'], 
+        plan_name=sub['plan'], 
+        s_type=sub.get('type', 'v2ray'), 
+        username=sub['username'],
+        purpose="renew" # مشخص می‌کنیم که این یک تمدید است
+    )
+
+    await callback.message.edit_text(
+        f"♻️ **درخواست تمدید اشتراک**\n\n"
+        f"👤 یوزرنیم: `{sub['username']}`\n"
+        f"💰 مبلغ تمدید: **{sub['amount']:,} تومان**\n\n"
+        f"لطفاً روش پرداخت را انتخاب کنید:",
+        reply_markup=nav.payment_methods(inv_id)
+    )
