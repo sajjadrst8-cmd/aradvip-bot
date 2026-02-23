@@ -138,6 +138,33 @@ async def start(message: types.Message, state: FSMContext):
         )
 
 
+@dp.message_handler(content_types=types.ContentType.CONTACT)
+async def get_contact(message: types.Message):
+    contact = message.contact
+    user_id = message.from_user.id
+    
+    # چک کردن اینکه آیا شماره متعلق به خود کاربر است (برای امنیت)
+    if contact.user_id != user_id:
+        return await message.answer("❌ لطفاً شماره موبایل خودتان را ارسال کنید.")
+
+    # ذخیره شماره در دیتابیس (آپدیت یا اینسرت)
+    await users_col.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "phone": contact.phone_number,
+            "username": message.from_user.username,
+            "full_name": message.from_user.full_name,
+            "join_date": datetime.datetime.now().strftime("%Y/%m/%d")
+        }},
+        upsert=True
+    )
+
+    # حذف دکمه شماره موبایل و ارسال پیام موفقیت
+    await message.answer(
+        "✅ ثبت‌نام شما با موفقیت انجام شد!\n\n"
+        "حالا برای ورود به پنل کاربری، دستور /start را مجدداً ارسال یا لمس کنید.",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
 
 # --- ۲. حساب کاربری و زیرمجموعه ---
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
