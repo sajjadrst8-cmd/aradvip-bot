@@ -95,6 +95,24 @@ def generate_random_username():
     random_part = ''.join(random.choice(chars) for _ in range(6))
     return f"AradVIP_{random_part}"
 
+async def get_marzban_user_usage(username):
+    token = await get_marzban_token()
+    if not token: return None
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"{config.PANEL_URL}/api/user/{username}", headers=headers) as resp:
+            if resp.status == 200:
+                user_data = await resp.json()
+                total = user_data.get('data_limit', 0)
+                used = user_data.get('used_traffic', 0)
+                # تبدیل بایت به گیگابایت با دو رقم اعشار
+                total_gb = round(total / (1024**3), 2)
+                used_gb = round(used / (1024**3), 2)
+                remaining_gb = round(max(0, total_gb - used_gb), 2)
+                return used_gb, remaining_gb, total_gb
+            return None
+
 # --- ۱. دستور استارت و منوی اصلی ---
 @dp.message_handler(commands=['start'], state="*")
 async def start(message: types.Message, state: FSMContext):
