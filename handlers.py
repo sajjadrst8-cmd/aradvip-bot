@@ -329,33 +329,23 @@ async def show_config_details(callback: types.CallbackQuery):
     sub = await invoices_col.find_one({"inv_id": inv_id})
 
     if not sub:
-        return await callback.answer("❌ اطلاعات اشتراک یافت نشد.")
+        return await callback.answer("❌ اطلاعات یافت نشد.")
 
-    # قبل از گرفتن آمار مصرف این شرط را بگذار:
-    if sub.get('type') == "v2ray":
+    # دریافت آمار مصرف (اگر v2ray است)
+    used, remaining, total = "0", "نامحدود", "نامحدود"
+    if sub.get('type', 'v2ray') == 'v2ray':
         usage_data = await get_marzban_user_usage(sub['username'])
-        # بقیه کدهای نمایش حجم...
-    else:
-        # برای بیو بیو فقط اطلاعات ذخیره شده را نشان بده
-        used, remaining, total = "N/A", "N/A", "N/A"
-
-    # دریافت آمار مصرف از پنل
-    usage_data = await get_marzban_user_usage(sub['username'])
-    if usage_data:
-        used, remaining, total = usage_data
-    else:
-        used, remaining, total = "0", "نامشخص", "نامشخص"
+        if usage_data:
+            used, remaining, total = usage_data
 
     qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={sub['config_data']}"
     
     caption = (
         f"📊 **جزئیات اشتراک:**\n"
-        f"━━━━━━━━━━━━━━━\n"
-        f"🟢 وضعیت: **فعال**\n"
+        f"وضعیت: 🟢 فعال\n"
         f"👤 نام کاربری: `{sub['username']}`\n"
         f"📥 مصرف شده: `{used} GB`\n"
         f"📤 باقیمانده: `{remaining} GB`\n"
-        f"📦 حجم کل: `{total} GB`\n"
         f"📅 تاریخ ثبت: `{sub['date']}`\n"
         f"━━━━━━━━━━━━━━━\n"
         f"🔗 **لینک اشتراک:**\n"
@@ -367,10 +357,11 @@ async def show_config_details(callback: types.CallbackQuery):
         photo=qr_url, 
         caption=caption, 
         parse_mode="Markdown",
-        reply_markup=nav.sub_details_menu(inv_id)
+        reply_markup=nav.sub_details_menu(inv_id) # مطمئن شو در مارک آپ ها این تابع هست
     )
     await callback.message.delete()
     await callback.answer()
+
 
 
 # --- ۷. مشاهده اشتراک‌ها و شارژ فقط با کریپتو ---
