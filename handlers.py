@@ -715,3 +715,10 @@ async def back_to_test_menu(callback: types.CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
+@dp.callback_query_handler(lambda c: c.data.startswith("verify_"), state="*")
+async def verify_payment_admin(callback: types.CallbackQuery):
+    inv_id = callback.data.split("_")[1]
+    # ۱. آپدیت وضعیت فاکتور در دیتابیس به paid
+    # ۲. اطلاع رسانی به کاربر که اشتراکش تایید شد
+    await callback.message.edit_caption("✅ این فاکتور توسط شما تایید شد.")
+    await callback.answer("تایید شد", show_alert=True)
