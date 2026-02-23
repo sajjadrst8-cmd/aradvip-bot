@@ -13,31 +13,48 @@ import aiohttp
 
 async def create_marzban_user(username, data_gb):
     token = await get_marzban_token()
-    if not token: return None
+    if not token: 
+        print("Error: Could not get Marzban Token")
+        return None
     
     headers = {"Authorization": f"Bearer {token}"}
     
-    # تبدیل گیگابایت به بایت
+    # تبدیل حجم از گیگابایت به بایت
     bytes_limit = int(data_gb) * 1024 * 1024 * 1024
     
+    # تنظیمات دقیق مطابق اسکرین‌شات شما
     payload = {
         "username": username,
         "proxies": {
-            "vless": {"flow": "xtls-rprx-vision"}, # اگر پنلت فرق دارد بگو تغییر دهیم
-            "vmess": {}
+            "vless": {
+                "flow": "xtls-rprx-vision" # دقیقا مطابق فیلد Flow در عکس
+            },
+            "vmess": {} # مطابق عکس Vmess هم فعال است
+        },
+        "inbounds": {
+            "vless": [
+                "VLESS TCP VISION NGINX FALLBACK",
+                "VLESS TCP REALITY (TCP)",
+                "VLESS TCP TUNNEL (TCP)",
+                "VLESS HTTPUPGRADE (WS)"
+            ]
         },
         "data_limit": bytes_limit,
-        "expire": 0  # 0 یعنی بدون محدودیت زمانی (Unlimited Time)
+        "expire": 0, # خالی بودن Expiry Date در عکس یعنی 0 (نامحدود)
+        "status": "active"
     }
     
     async with aiohttp.ClientSession() as session:
-        async with session.post(f"{config.PANEL_URL}/api/user", json=payload, headers=headers) as resp:
+        url = f"{config.PANEL_URL}/api/user"
+        async with session.post(url, json=payload, headers=headers) as resp:
             if resp.status == 200:
                 data = await resp.json()
                 return data['subscription_url']
             else:
-                print(f"Marzban API Error: {await resp.text()}")
+                error_detail = await resp.text()
+                print(f"Marzban API Error: {error_detail}")
                 return None
+
 
 
 async def get_crypto_prices():
