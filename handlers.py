@@ -6,6 +6,8 @@ from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
+class AdminState(StatesGroup):
+    waiting_for_broadcast_msg = State()  # این را اضافه کنید
 from loader import dp, bot, ADMIN_ID
 from database import users_col, invoices_col, plans_col, get_user, is_duplicate_receipt, save_receipt, add_invoice
 import markups as nav
