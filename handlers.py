@@ -330,6 +330,14 @@ async def show_config_details(callback: types.CallbackQuery):
     if not sub:
         return await callback.answer("❌ اطلاعات اشتراک یافت نشد.")
 
+    # قبل از گرفتن آمار مصرف این شرط را بگذار:
+    if sub.get('type') == "v2ray":
+        usage_data = await get_marzban_user_usage(sub['username'])
+        # بقیه کدهای نمایش حجم...
+    else:
+        # برای بیو بیو فقط اطلاعات ذخیره شده را نشان بده
+        used, remaining, total = "N/A", "N/A", "N/A"
+
     # دریافت آمار مصرف از پنل
     usage_data = await get_marzban_user_usage(sub['username'])
     if usage_data:
