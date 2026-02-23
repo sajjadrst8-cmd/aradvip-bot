@@ -605,6 +605,7 @@ async def renew_request_handler(callback: types.CallbackQuery, state: FSMContext
 @dp.callback_query_handler(lambda c: c.data == "admin_panel", state="*")
 async def admin_panel_handler(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
+    # در اینجا ADMIN_ID را از nav یا فایل تنظیماتت بخوان
     if str(callback.from_user.id) != str(nav.ADMIN_ID):
         return await callback.answer("❌ عدم دسترسی", show_alert=True)
 
@@ -623,16 +624,17 @@ async def admin_panel_handler(callback: types.CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-# --- ۲. آمار کلی ربات ---
+# --- آمار کلی ربات ---
 @dp.callback_query_handler(lambda c: c.data == "admin_stats", state="*")
 async def admin_stats_handler(callback: types.CallbackQuery):
-    all_users = await users_col.count_documents({})
-    all_invoices = await invoices_col.count_documents({"status": "paid"})
+    # مطمئن شو نام کالکشن‌ها (users_col و invoices_col) درست باشد
+    all_users = await db.users.count_documents({}) 
+    all_paid = await db.invoices.count_documents({"status": "paid"})
     
     await callback.message.edit_text(
-        f"📊 **آمار کلی ربات آراد VIP**\n\n"
-        f"👤 تعداد کل کاربران: {all_users}\n"
-        f"💰 تعداد تراکنش‌های موفق: {all_invoices}\n",
+        f"📊 **آمار کلی ربات**\n\n"
+        f"👤 تعداد کاربران: {all_users}\n"
+        f"💰 تراکنش‌های موفق: {all_paid}",
         reply_markup=types.InlineKeyboardMarkup().add(
             types.InlineKeyboardButton("🔙 بازگشت", callback_data="admin_panel")
         ),
@@ -640,63 +642,55 @@ async def admin_stats_handler(callback: types.CallbackQuery):
     )
     await callback.answer()
 
-# --- ۳. استعلام کاربر (جستجو) ---
+# --- استعلام کاربر ---
 @dp.callback_query_handler(lambda c: c.data == "admin_search_user", state="*")
 async def start_user_search(callback: types.CallbackQuery):
     await AdminState.waiting_for_user_search.set()
-    await callback.message.edit_text("🔍 لطفاً **آیدی عددی** کاربر را ارسال کنید:", parse_mode="Markdown")
+    await callback.message.edit_text("🔍 لطفاً **آیدی عددی** کاربر را بفرستید:")
     await callback.answer()
 
 @dp.message_handler(state=AdminState.waiting_for_user_search)
 async def perform_user_search(message: types.Message, state: FSMContext):
     await state.finish()
-    user_id = message.text
-    
-    if not user_id.isdigit():
-        return await message.answer("❌ آیدی باید فقط عدد باشد.")
+    u_id = message.text
+    if not u_id.isdigit():
+        return await message.answer("❌ آیدی باید عدد باشد.")
 
-    user = await users_col.find_one({"user_id": int(user_id)})
+    user = await db.users.find_one({"user_id": int(u_id)})
     if not user:
-        return await message.answer("❌ کاربری با این آیدی یافت نشد.")
+        return await message.answer("❌ یافت نشد.")
 
-    last_test = user.get("last_test_date", "دریافت نشده")
     info = (
-        f"👤 **اطلاعات کاربر:**\n\n"
-        f"🆔 آیدی عددی: `{user['user_id']}`\n"
-        f"📅 آخرین تست: {last_test}\n"
-        f"💰 موجودی کیف پول: {user.get('balance', 0):,} تومان"
+        f"👤 کاربر: {u_id}\n"
+        f"💰 موجودی: {user.get('balance', 0)} تومان\n"
+        f"📅 تاریخ ثبت‌نام: {user.get('join_date', 'نامعلوم')}"
     )
-    await message.answer(info, parse_mode="Markdown")
+    await message.answer(info)
 
-# --- ۴. پیام همگانی (ارسال به همه) ---
+# --- پیام همگانی ---
 @dp.callback_query_handler(lambda c: c.data == "admin_broadcast", state="*")
 async def start_broadcast(callback: types.CallbackQuery):
     await AdminState.waiting_for_broadcast_msg.set()
-    await callback.message.edit_text("📝 پیام خود را ارسال کنید (لغو با /cancel):")
+    await callback.message.edit_text("📝 پیام خود را بفرستید (متن/عکس/فیلم):")
     await callback.answer()
 
 @dp.message_handler(state=AdminState.waiting_for_broadcast_msg, content_types=types.ContentTypes.ANY)
 async def perform_broadcast(message: types.Message, state: FSMContext):
-    if message.text == "/cancel":
-        await state.finish()
-        return await message.answer("❌ لغو شد.")
-
     await state.finish()
-    all_users = await users_col.find().to_list(length=10000)
+    all_users = await db.users.find().to_list(length=None)
     
-    success, fail = 0, 0
-    sent_msg = await message.answer(f"⏳ در حال ارسال به {len(all_users)} نفر...")
+    sent = 0
+    await message.answer(f"⏳ در حال ارسال به {len(all_users)} نفر...")
 
     for user in all_users:
         try:
             await message.copy_to(chat_id=user['user_id'])
-            success += 1
+            sent += 1
             await asyncio.sleep(0.05)
         except:
-            fail += 1
+            pass
 
-    await sent_msg.edit_text(f"✅ پایان ارسال\n🟢 موفق: {success}\n🔴 ناموفق: {fail}")
-
+    await message.answer(f"✅ ارسال به {sent} نفر با موفقیت انجام شد.")
 
 # بازگشت به منوی اصلی و بستن تمام استیت‌ها
 @dp.callback_query_handler(lambda c: c.data == 'main_menu', state="*")
