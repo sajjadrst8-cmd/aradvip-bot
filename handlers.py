@@ -300,44 +300,53 @@ async def admin_decision(call: types.CallbackQuery):
     action, user_id, price, purpose = parts[1], int(parts[2]), int(parts[3]), parts[4]
 
     if action == "accept":
-        # ۱. دریافت توکن از مرزبان (مطابق عکس شما)
-        token = await get_marzban_token() #
-        if not token:
-            return await call.answer("❌ خطا در اتصال به پنل مرزبان", show_alert=True)
+        # دریافت دیتای ذخیره شده (شامل یوزرنیمی که کاربر وارد کرده یا تصادفی بوده)
+        # این دیتا در مرحله ask_username ذخیره شده است
+        state = dp.current_state(chat=user_id, user=user_id)
+        user_data = await state.get_data()
+        chosen_username = user_data.get('chosen_v2ray_username')
 
-        if purpose == "deposit":
-            # عملیات شارژ کیف پول در دیتابیس
+        if purpose == "deposit" or purpose == "charge":
             await users_col.update_one({"user_id": user_id}, {"$inc": {"balance": price}})
             await bot.send_message(user_id, f"✅ مبلغ {price:,} تومان به کیف پول شما اضافه شد.")
-        else:
-            # ۲. ساخت اکانت در مرزبان (خرید مستقیم)
-            # در اینجا باید درخواست POST برای ساخت User ارسال شود
+        
+        # بخش V2ray (اتصال خودکار به مرزبان)
+        elif "GB" in purpose:
+            token = await get_marzban_token() #
+            if not token:
+                return await call.answer("❌ خطا در اتصال به پنل", show_alert=True)
+
+            # اگر کاربر نام انتخاب نکرده بود، یک نام تصادفی بساز
+            final_name = chosen_username if chosen_username else f"user_{user_id}_{random.randint(100, 999)}"
+            
             headers = {"Authorization": f"Bearer {token}"}
             payload = {
-                "username": f"user_{user_id}_{random.randint(100, 999)}",
-                "data_limit": int(purpose.replace('GB', '')) * 1024 * 1024 * 1024 if 'GB' in purpose else 0,
-                "expire": 0 # بدون انقضا طبق کانفیگ شما
+                "username": final_name,
+                "proxies": {"vmess": {}, "vless": {}, "trojan": {}}, # پروتکل‌های پیش‌فرض
+                "data_limit": int(purpose.replace('GB', '')) * 1024 * 1024 * 1024,
+                "expire": 0 
             }
             
             async with aiohttp.ClientSession() as session:
                 async with session.post(f"{config.PANEL_URL}/api/user", json=payload, headers=headers) as resp:
                     if resp.status == 200:
-                        user_data = await resp.json()
-                        sub_url = user_data.get('subscription_url')
-                        await bot.send_message(user_id, f"✅ پرداخت تایید شد!\n🚀 کانفیگ شما:\n`{sub_url}`", parse_mode="Markdown")
+                        res_data = await resp.json()
+                        sub_url = res_data.get('subscription_url')
+                        await bot.send_message(user_id, f"✅ اکانت V2ray شما ساخته شد:\n\n👤 نام: {final_name}\n🚀 لینک اشتراک:\n`{sub_url}`", parse_mode="Markdown")
                     else:
-                        await bot.send_message(user_id, "⚠️ پرداخت تایید شد اما خطایی در ساخت اکانت رخ داد. لطفاً به پشتیبانی پیام دهید.")
+                        await bot.send_message(user_id, "⚠️ پرداخت تایید شد اما ساخت اکانت در پنل با خطا مواجه شد.")
 
-        await call.message.edit_text(f"✅ تایید شد برای کاربر: {user_id}")
+        # بخش BiuBiu (سیستم دستی)
+        else:
+            await bot.send_message(user_id, f"✅ پرداخت شما برای پلن BiuBiu ({purpose}) تایید شد.\n⏳ لطفاً منتظر بمانید تا پشتیبانی اطلاعات اکانت را برای شما ارسال کند.")
+
+        await call.message.edit_text(f"✅ تایید شد (کاربر {user_id})")
 
     elif action == "reject":
-        await bot.send_message(user_id, "❌ متاسفانه رسید ارسالی شما رد شد.")
-        await call.message.edit_text(f"❌ رد شد برای کاربر: {user_id}")
+        await bot.send_message(user_id, "❌ رسید ارسالی شما رد شد.")
+        await call.message.edit_text(f"❌ رد شد (کاربر {user_id})")
 
     await call.answer()
-
-
-
 
 # دریافت عکس رسید
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
