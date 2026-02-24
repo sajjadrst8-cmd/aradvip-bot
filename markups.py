@@ -41,10 +41,14 @@ def main_menu(user_id):
 # --- منوی خرید سرویس ---
 def buy_menu():
     kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("🚀 V2ray (Vision + Reality)", callback_data="buy_v2ray"),
-           InlineKeyboardButton("🛡 Biubiu VPN", callback_data="buy_biubiu"),
-           InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
+    kb.add(
+        InlineKeyboardButton("🚀 V2ray (Vision + Reality)", callback_data="buy_v2ray"),
+        InlineKeyboardButton("🛡 Biubiu VPN (تک کاربره)", callback_data="buy_biubiu_1u"),
+        InlineKeyboardButton("👥 Biubiu VPN (دو کاربره)", callback_data="buy_biubiu_2u"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")
+    )
     return kb
+
 
 # --- روش‌های پرداخت فاکتور ---
 def payment_methods(inv_id):
