@@ -2,8 +2,13 @@ from aiogram import types
 from loader import dp, bot
 from database import get_user
 from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
 import markups as nav
 
+class BuyState(StatesGroup):
+    entering_username = State()
+    waiting_for_receipt = State()
+    
 @dp.message_handler(commands=['start'], state="*")
 async def start_handler(message: types.Message, state: FSMContext):
     await state.finish()
