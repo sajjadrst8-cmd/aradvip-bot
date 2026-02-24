@@ -1,9 +1,8 @@
 import logging
 from aiogram import executor
-# دقت کن: فقط ایمپورت لودر و هندلرز
 from loader import dp
 import handlers 
-
+import admin_handlers
 logging.basicConfig(level=logging.INFO)
 
 if __name__ == '__main__':
