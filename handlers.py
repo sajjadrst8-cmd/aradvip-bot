@@ -205,57 +205,73 @@ async def referral_handler(callback: types.CallbackQuery):
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
 # --- ۳. انتخاب سرویس و پلن ---
+# --- ۳. انتخاب سرویس و پلن ---
+
+# منوی اصلی خرید (انتخاب بین V2ray و BiuBiu)
 @dp.callback_query_handler(lambda c: c.data == "buy_new", state="*")
 async def buy_new_handler(callback: types.CallbackQuery):
-    await callback.message.edit_text("لطفاً نوع سرویس مورد نظر را انتخاب کنید:", reply_markup=nav.buy_menu())
+    await callback.message.edit_text(
+        "🛒 لطفاً نوع سرویس مورد نظر را انتخاب کنید:",
+        reply_markup=nav.buy_menu() # مطمئن شو در markups دکمه‌های buy_v2ray و buy_biubiu_1u و ... تعریف شده
+    )
 
+# لیست پلن‌های V2ray
 @dp.callback_query_handler(lambda c: c.data == "buy_v2ray")
 async def v2ray_list(callback: types.CallbackQuery):
     kb = types.InlineKeyboardMarkup(row_width=1)
     for text, price, name in config.V2RAY_PLANS:
+        # دیتای V2ray با پیشوند plan_ شروع می‌شود تا به مرحله یوزرنیم برود
         kb.add(types.InlineKeyboardButton(text, callback_data=f"plan_v2ray_{price}_{name}"))
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
-    await callback.message.edit_text("🛒 لیست پلن‌های V2ray (حجمی):", reply_markup=kb)
-# --- نمایش پلن‌های BiuBiu تک کاربره ---
-@dp.callback_query_handler(lambda c: c.data == 'buy_biubiu_1u', state="*")
-async def show_biubiu_1u_plans(call: types.CallbackQuery):
-    from config import BIUBIU_1U_PLANS
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    
-    for plan_text, price, plan_id in BIUBIU_1U_PLANS:
-        # ساخت دکمه برای هر پلن
-        button = InlineKeyboardButton(
-            plan_text, 
-            callback_data=f"buy_plan:{plan_id}:{price}"
-        )
-        keyboard.add(button)
-    
-    keyboard.add(InlineKeyboardButton("🔙 بازگشت", callback_data="buy_menu"))
-    await call.message.edit_text("لطفاً پلن مورد نظر BiuBiu (تک کاربره) را انتخاب کنید:", reply_markup=keyboard)
+    await callback.message.edit_text("💎 لیست پلن‌های V2ray (حجمی):", reply_markup=kb)
 
-# --- نمایش پلن‌های BiuBiu دو کاربره ---
-@dp.callback_query_handler(lambda c: c.data == 'buy_biubiu_2u', state="*")
-async def show_biubiu_2u_plans(call: types.CallbackQuery):
-    from config import BIUBIU_2U_PLANS
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    
-    for plan_text, price, plan_id in BIUBIU_2U_PLANS:
-        button = InlineKeyboardButton(
-            plan_text, 
-            callback_data=f"buy_plan:{plan_id}:{price}"
-        )
-        keyboard.add(button)
-    
-    keyboard.add(InlineKeyboardButton("🔙 بازگشت", callback_data="buy_menu"))
-    await call.message.edit_text("لطفاً پلن مورد نظر BiuBiu (دو کاربره) را انتخاب کنید:", reply_markup=keyboard)
+# لیست پلن‌های BiuBiu (تک کاربره)
+@dp.callback_query_handler(lambda c: c.data == "buy_biubiu_1u")
+async def biubiu_1u_list(callback: types.CallbackQuery):
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    for text, price, name in config.BIUBIU_1U_PLANS:
+        # دیتای BiuBiu مستقیماً به مرحله دریافت رسید می‌رود (چون یوزرنیم نمی‌خواهد)
+        kb.add(types.InlineKeyboardButton(text, callback_data=f"biubiu_pay_{price}_{name}"))
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
+    await callback.message.edit_text("👤 پلن‌های BiuBiu (تک کاربره):", reply_markup=kb)
 
-@dp.callback_query_handler(lambda c: c.data.startswith("plan_"), state="*")
-async def ask_username(callback: types.CallbackQuery, state: FSMContext):
+# لیست پلن‌های BiuBiu (دو کاربره)
+@dp.callback_query_handler(lambda c: c.data == "buy_biubiu_2u")
+async def biubiu_2u_list(callback: types.CallbackQuery):
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    for text, price, name in config.BIUBIU_2U_PLANS:
+        kb.add(types.InlineKeyboardButton(text, callback_data=f"biubiu_pay_{price}_{name}"))
+    kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
+    await callback.message.edit_text("👥 پلن‌های BiuBiu (دو کاربره):", reply_markup=kb)
+
+# --- هندلر مخصوص BiuBiu برای رفتن مستقیم به واریز وجه ---
+@dp.callback_query_handler(lambda c: c.data.startswith("biubiu_pay_"), state="*")
+async def biubiu_pay_handler(callback: types.CallbackQuery, state: FSMContext):
     parts = callback.data.split("_")
-    await state.update_data(s_type=parts[1], price=int(parts[2]), plan_name=parts[3])
-    await BuyState.entering_username.set()
-    kb = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🎲 انتخاب نام تصادفی", callback_data="random_name"))
-    await callback.message.answer("👤 یک نام کاربری (انگلیسی) ارسال کنید یا دکمه زیر را بزنید:", reply_markup=kb)
+    price = int(parts[2])
+    plan_name = parts[3]
+    
+    await state.update_data(price=price, plan_name=plan_name, s_type="biubiu")
+    await BuyState.waiting_for_receipt.set() # مستقیم می‌رود برای ارسال عکس رسید
+    
+    await callback.message.edit_text(
+        f"✅ شما پلن {plan_name} را انتخاب کردید.\n"
+        f"💰 مبلغ: {price:,} تومان\n\n"
+        f"لطفاً تصویر رسید واریز خود را ارسال کنید تا توسط مدیریت تایید شود."
+    )
+
+# --- هندلر V2ray برای رفتن به مرحله یوزرنیم (کد فعلی شما) ---
+@dp.callback_query_handler(lambda c: c.data.startswith("plan_v2ray_"), state="*")
+async def ask_username(callback: types.CallbackQuery, state: FSMContext):
+    parts = callback.data.split("_") #
+    await state.update_data(s_type=parts[1], price=int(parts[2]), plan_name=parts[3]) #
+    await BuyState.entering_username.set() #
+    
+    kb = types.InlineKeyboardMarkup().add(
+        types.InlineKeyboardButton("🎲 نام تصادفی", callback_data="random_name") #
+    )
+    await callback.message.edit_text("لطفاً یک یوزرنیم به انگلیسی وارد کنید یا دکمه نام تصادفی را بزنید:", reply_markup=kb)
+
 
 # --- ۴. صدور فاکتور و دریافت رسید ---
 async def proceed_to_invoice(message: types.Message, state: FSMContext, username: str):
