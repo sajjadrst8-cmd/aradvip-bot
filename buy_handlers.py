@@ -5,7 +5,7 @@ import config
 import markups as nav
 import random
 import string
-from handlers import BuyState # یا هر فایلی که کلاس BuyState در آن تعریف شده
+from states import BuyState
 
 # --- ۱. نمایش لیست پلن‌های V2ray ---
 @dp.callback_query_handler(lambda c: c.data == "buy_v2ray")
