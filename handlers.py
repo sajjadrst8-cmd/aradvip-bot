@@ -711,15 +711,30 @@ async def back_to_test_menu(callback: types.CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-# هندلر دکمه بازگشت به منوی اصلی
+# هندلر عمومی برای تمام دکمه‌های "بازگشت به منوی اصلی"
 @dp.callback_query_handler(lambda c: c.data == 'main_menu', state="*")
-async def back_to_main_menu(callback: types.CallbackQuery, state: FSMContext):
+async def back_to_main_handler(callback: types.CallbackQuery, state: FSMContext):
+    # بستن هر وضعیتی (State) که کاربر در آن هست
     await state.finish()
+    
+    # ویرایش پیام قبلی و نمایش منوی اصلی
     await callback.message.edit_text(
         f"سلام {callback.from_user.first_name}، به منوی اصلی خوش آمدید:",
         reply_markup=nav.main_menu(callback.from_user.id)
     )
+    # بستن حالت لودینگ دکمه در تلگرام
     await callback.answer()
+
+# هندلر بازگشت به منوی دریافت تست
+@dp.callback_query_handler(lambda c: c.data == 'get_test', state="*")
+async def back_to_test_handler(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await callback.message.edit_text(
+        "🎁 بخش دریافت اشتراک تست رایگان:\nلطفاً یکی از سرویس‌های زیر را انتخاب کنید:",
+        reply_markup=nav.test_subs_menu()
+    )
+    await callback.answer()
+
 
 @dp.callback_query_handler(lambda c: c.data.startswith("verify_"), state="*")
 async def verify_payment_admin(callback: types.CallbackQuery):
