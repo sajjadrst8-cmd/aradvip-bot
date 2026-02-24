@@ -216,6 +216,38 @@ async def v2ray_list(callback: types.CallbackQuery):
         kb.add(types.InlineKeyboardButton(text, callback_data=f"plan_v2ray_{price}_{name}"))
     kb.add(types.InlineKeyboardButton("🔙 بازگشت", callback_data="buy_new"))
     await callback.message.edit_text("🛒 لیست پلن‌های V2ray (حجمی):", reply_markup=kb)
+# --- نمایش پلن‌های BiuBiu تک کاربره ---
+@dp.callback_query_handler(lambda c: c.data == 'buy_biubiu_1u', state="*")
+async def show_biubiu_1u_plans(call: types.CallbackQuery):
+    from config import BIUBIU_1U_PLANS
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    
+    for plan_text, price, plan_id in BIUBIU_1U_PLANS:
+        # ساخت دکمه برای هر پلن
+        button = InlineKeyboardButton(
+            plan_text, 
+            callback_data=f"buy_plan:{plan_id}:{price}"
+        )
+        keyboard.add(button)
+    
+    keyboard.add(InlineKeyboardButton("🔙 بازگشت", callback_data="buy_menu"))
+    await call.message.edit_text("لطفاً پلن مورد نظر BiuBiu (تک کاربره) را انتخاب کنید:", reply_markup=keyboard)
+
+# --- نمایش پلن‌های BiuBiu دو کاربره ---
+@dp.callback_query_handler(lambda c: c.data == 'buy_biubiu_2u', state="*")
+async def show_biubiu_2u_plans(call: types.CallbackQuery):
+    from config import BIUBIU_2U_PLANS
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    
+    for plan_text, price, plan_id in BIUBIU_2U_PLANS:
+        button = InlineKeyboardButton(
+            plan_text, 
+            callback_data=f"buy_plan:{plan_id}:{price}"
+        )
+        keyboard.add(button)
+    
+    keyboard.add(InlineKeyboardButton("🔙 بازگشت", callback_data="buy_menu"))
+    await call.message.edit_text("لطفاً پلن مورد نظر BiuBiu (دو کاربره) را انتخاب کنید:", reply_markup=keyboard)
 
 @dp.callback_query_handler(lambda c: c.data.startswith("plan_"), state="*")
 async def ask_username(callback: types.CallbackQuery, state: FSMContext):
