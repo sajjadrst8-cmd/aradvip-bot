@@ -19,4 +19,4 @@ async def start_handler(message: types.Message, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
 async def back_to_main(call: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    await call.message.edit_text("منوی اصلی:", reply_markup=nav.main_menu())
+    await call.message.edit_text("منوی اصلی:", reply_markup=nav.main_menu(call.from_user.id))
