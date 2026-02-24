@@ -90,3 +90,79 @@ async def show_stats(callback: types.CallbackQuery):
            f"🚀 ربات در وضعیت آنلاین قرار دارد."
     
     await callback.message.edit_text(text, reply_markup=nav.admin_panel())
+
+# استیت‌های جدید برای بخش مدیریت کاربر
+class UserManageStates(StatesGroup):
+    waiting_for_user_search = State() # جستجوی کاربر
+    waiting_for_single_amount = State() # مبلغ شارژ تکی
+    waiting_for_direct_msg = State() # متن پیام مستقیم
+
+# --- شروع جستجوی کاربر (برای شارژ یا پیام) ---
+@dp.callback_query_handler(lambda c: c.data in ["charge_single", "admin_user_settings", "admin_broadcast"], state="*")
+async def start_user_search(callback: types.CallbackQuery):
+    await UserManageStates.waiting_for_user_search.set()
+    await callback.message.answer("🔍 آیدی عددی (User ID) کاربر مورد نظر را ارسال کنید:\n(می‌توانید از بخش آمار یا رسیدها آیدی را کپی کنید)")
+    await callback.answer()
+
+@dp.message_handler(state=UserManageStates.waiting_for_user_search)
+async def process_user_search(message: types.Message, state: FSMContext):
+    search_id = message.text
+    if not search_id.isdigit():
+        return await message.answer("⚠️ آیدی باید عدد باشد. دوباره تلاش کنید:")
+    
+    user = users_col.find_one({"user_id": int(search_id)})
+    if not user:
+        return await message.answer("❌ کاربری با این آیدی در دیتابیس یافت نشد.")
+    
+    await state.update_data(target_id=search_id)
+    text = f"👤 کاربر یافت شد:\n🆔 آیدی: {user['user_id']}\n💰 موجودی فعلی: {user.get('balance', 0):,} تومان\n📞 شماره: {user.get('phone', 'ثبت نشده')}"
+    await message.answer(text, reply_markup=nav.admin_user_ops_menu(search_id))
+
+# --- بخش شارژ تکی مبلغ دلخواه ---
+@dp.callback_query_handler(lambda c: c.data.startswith("op_charge_"), state="*")
+async def ask_charge_amount(callback: types.CallbackQuery, state: FSMContext):
+    target_id = callback.data.split("_")[2]
+    await state.update_data(target_id=target_id)
+    await UserManageStates.waiting_for_single_amount.set()
+    await callback.message.answer(f"💰 مبلغ شارژ برای کاربر {target_id} را به «تومان» وارد کنید:")
+
+@dp.message_handler(state=UserManageStates.waiting_for_single_amount)
+async def finish_single_charge(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        return await message.answer("⚠️ مبلغ معتبر نیست.")
+    
+    data = await state.get_data()
+    target_id = int(data.get('target_id'))
+    amount = int(message.text)
+    
+    # آپدیت دیتابیس
+    users_col.update_one({"user_id": target_id}, {"$inc": {"balance": amount}})
+    
+    # اطلاع به کاربر
+    try:
+        await bot.send_message(target_id, f"✅ حساب شما توسط مدیریت شارژ شد!\n💰 مبلغ: {amount:,} تومان")
+    except: pass
+    
+    await message.answer(f"✅ مبلغ {amount:,} تومان به حساب {target_id} اضافه شد.", reply_markup=nav.admin_panel())
+    await state.finish()
+
+# --- بخش ارسال پیام مستقیم (چت) ---
+@dp.callback_query_handler(lambda c: c.data.startswith("op_msg_"), state="*")
+async def ask_direct_msg(callback: types.CallbackQuery, state: FSMContext):
+    target_id = callback.data.split("_")[2]
+    await state.update_data(target_id=target_id)
+    await UserManageStates.waiting_for_direct_msg.set()
+    await callback.message.answer(f"✉️ متن پیام خود را برای کاربر {target_id} بفرستید:")
+
+@dp.message_handler(state=UserManageStates.waiting_for_direct_msg)
+async def send_direct_msg(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    target_id = int(data.get('target_id'))
+    
+    try:
+        await bot.send_message(target_id, f"✉️ پیام جدید از طرف مدیریت:\n\n{message.text}")
+        await message.answer("✅ پیام با موفقیت ارسال شد.")
+    except:
+        await message.answer("❌ ارسال پیام ناموفق بود (احتمالاً کاربر ربات را بلاک کرده).")
+    
+    await state.finish()
