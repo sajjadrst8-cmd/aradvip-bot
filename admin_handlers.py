@@ -171,3 +171,14 @@ async def send_direct_msg(message: types.Message, state: FSMContext):
 async def back_to_admin_charge(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
     await callback.message.edit_text("💰 بخش شارژ کیف پول:", reply_markup=nav.admin_charge_menu())
+
+@dp.callback_query_handler(lambda c: c.data == "admin_stats", state="*")
+async def show_stats(callback: types.CallbackQuery):
+    token = await marzban_handlers.get_marzban_token()
+    status = "✅ متصل به مرزبان" if token else "❌ خطا در اتصال به مرزبان"
+    
+    total_users = users_col.count_documents({})
+    await callback.message.edit_text(
+        f"📊 آمار ربات:\n\n👥 کل کاربران: {total_users}\n🔗 وضعیت پنل: {status}",
+        reply_markup=nav.admin_panel()
+    )
