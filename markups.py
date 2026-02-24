@@ -1,13 +1,15 @@
 ADMIN_ID = 863961919
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-def admin_verify_payment(invoice_id):
+def admin_verify_payment(user_id, price, purpose):
     kb = InlineKeyboardMarkup(row_width=2)
+    # هماهنگ شده با هندلر admin_decision که قبلاً نوشتیم
     kb.add(
-        InlineKeyboardButton("✅ تایید و شارژ", callback_data=f"verify_pay_{invoice_id}"),
-        InlineKeyboardButton("❌ رد تراکنش", callback_data=f"reject_pay_{invoice_id}")
+        InlineKeyboardButton("✅ تایید", callback_data=f"admin:accept:{user_id}:{price}:{purpose}"),
+        InlineKeyboardButton("❌ رد تراکنش", callback_data=f"admin:reject:{user_id}:{price}:{purpose}")
     )
     return kb
+
 
 # --- منوی اصلی ---
 def main_menu(user_id):
@@ -39,6 +41,7 @@ def main_menu(user_id):
     return kb
 
 # --- منوی خرید سرویس ---
+# --- منوی خرید سرویس (این بخش اوکی است) ---
 def buy_menu():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
@@ -48,6 +51,18 @@ def buy_menu():
         InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu")
     )
     return kb
+
+# --- اصلاح شده: عملیات روی یک رسید مشخص برای ادمین ---
+def receipt_action_menu(user_id, price, plan_name):
+    kb = InlineKeyboardMarkup(row_width=1)
+    # این ساختار دقیقاً با هندلر admin: که در admin_handlers نوشتیم مچ است
+    kb.add(
+        InlineKeyboardButton("✅ تایید و ساخت", callback_data=f"admin:accept:{user_id}:{price}:{plan_name}"),
+        InlineKeyboardButton("❌ رد رسید", callback_data=f"admin:reject:{user_id}:{price}:{plan_name}"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="admin_receipts")
+    )
+    return kb
+
 
 
 # --- روش‌های پرداخت فاکتور ---
@@ -112,11 +127,13 @@ def v2ray_test_confirm():
 
 def biubiu_test_menu():
     kb = InlineKeyboardMarkup(row_width=1)
+    # تغییر دیتا به biubiu_pay برای اینکه هندلر آن را بشناسد
     kb.add(
-        InlineKeyboardButton("⏱ ۱ روزه نامحدود - ۵۰,۰۰۰ تومان", callback_data="plan_biu_50000_1DayTest"),
+        InlineKeyboardButton("⏱ ۱ روزه تست - ۵۰,۰۰۰ تومان", callback_data="biubiu_pay_50000_1DayTest"),
         InlineKeyboardButton("🔙 بازگشت", callback_data="get_test")
     )
     return kb
+
 
 # --- منوی اصلی پنل مدیریت ---
 def admin_panel():
