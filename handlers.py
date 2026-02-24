@@ -2,7 +2,6 @@ from aiogram import types
 from loader import dp, bot
 from database import get_user
 from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
 from states import BuyState
 import markups as nav
     
