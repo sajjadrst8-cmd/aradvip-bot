@@ -1,6 +1,7 @@
 from aiogram import types
 from loader import dp, bot
 from database import get_user
+from aiogram.dispatcher import FSMContext
 import markups as nav
 
 @dp.message_handler(commands=['start'], state="*")
