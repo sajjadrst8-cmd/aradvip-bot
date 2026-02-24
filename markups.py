@@ -114,35 +114,61 @@ def biubiu_test_menu():
     )
     return kb
 
-# --- پنل مدیریت ---
+# --- منوی اصلی پنل مدیریت ---
 def admin_panel():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("📑 رسیدها", callback_data="admin_receipts"),
+        InlineKeyboardButton("💰 شارژ کیف پول", callback_data="admin_charge_wallet")
+    )
+    kb.add(
+        InlineKeyboardButton("✉️ پیام به کاربران", callback_data="admin_broadcast"),
+        InlineKeyboardButton("📊 آمار کاربران", callback_data="admin_stats")
+    )
+    kb.add(InlineKeyboardButton("⚙️ تنظیمات کاربران", callback_data="admin_user_settings"))
+    kb.add(InlineKeyboardButton("🔙 خروج از پنل", callback_data="main_menu"))
+    return kb
+
+# --- منوی رسیدها ---
+def admin_receipts_menu():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(
-        InlineKeyboardButton("📊 آمار کلی ربات", callback_data="admin_stats"),
-        InlineKeyboardButton("💰 شارژ دستی کاربر", callback_data="admin_manual_charge"),
-        InlineKeyboardButton("🔙 خروج از پنل", callback_data="main_menu")
+        InlineKeyboardButton("⏳ رسیدهای تایید نشده", callback_data="receipts_pending"),
+        InlineKeyboardButton("✅ رسیدهای تایید شده", callback_data="receipts_confirmed"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="admin_panel")
     )
     return kb
 
-def admin_reject_reasons_menu(user_id):
+# --- عملیات روی یک رسید مشخص ---
+def receipt_action_menu(inv_id):
     kb = InlineKeyboardMarkup(row_width=1)
-    reasons = [
-        ("❌ مبلغ واریزی اشتباه است", "mablagh"),
-        ("❌ رسید جعلی یا تکراری است", "fake"),
-        ("❌ تصویر ارسالی واضح نیست", "blurry"),
-        ("❌ مبلغی به حساب واریز نشده", "not_received")
-    ]
-    for text, reason_key in reasons:
-        kb.add(InlineKeyboardButton(text, callback_data=f"admin_final_no_{user_id}_{reason_key}"))
-
-    kb.add(InlineKeyboardButton("🔙 انصراف", callback_data="admin_main_panel"))
+    kb.add(
+        InlineKeyboardButton("✅ تایید (شارژ خودکار)", callback_data=f"verify_pay_{inv_id}"),
+        InlineKeyboardButton("❌ رد رسید", callback_data=f"reject_pay_{inv_id}"),
+        InlineKeyboardButton("➕ شارژ دستی مبلغ دلخواه", callback_data=f"manual_charge_{inv_id}"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="receipts_pending")
+    )
     return kb
 
-    # اگر کاربر جزو لیست ادمین‌ها بود، دکمه پنل را اضافه کن
-    if user_id == ADMIN_ID: # یا لیستی از ادمین‌ها
-        kb.add(InlineKeyboardButton(text="⚙️ پنل مدیریت", callback_data="admin_panel"))
-    
+# --- منوی شارژ کیف پول ---
+def admin_charge_menu():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("👤 شارژ تکی", callback_data="charge_single"),
+        InlineKeyboardButton("👥 شارژ همگانی", callback_data="charge_all")
+    )
+    kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="admin_panel"))
     return kb
+
+# --- تایید نهایی شارژ همگانی ---
+def confirm_all_charge(amount):
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("✅ بله، مطمئنم", callback_data=f"confirm_all_{amount}"),
+        InlineKeyboardButton("❌ خیر، لغو شود", callback_data="admin_charge_wallet")
+    )
+    return kb
+
 
 def register_menu():
     kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
