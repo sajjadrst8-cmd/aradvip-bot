@@ -294,39 +294,48 @@ async def handle_manual_username(message: types.Message, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data.startswith('admin:'), state="*")
 async def admin_decision(call: types.CallbackQuery):
     parts = call.data.split(':')
-    
     if len(parts) < 5:
-        await call.answer("❌ خطا: اطلاعات دکمه ناقص است.", show_alert=True)
-        return
+        return await call.answer("❌ دیتای نامعتبر", show_alert=True)
 
     action, user_id, price, purpose = parts[1], int(parts[2]), int(parts[3]), parts[4]
 
     if action == "accept":
-        user = await users_col.find_one({"user_id": user_id})
-        if user:
-            if purpose == "deposit" or purpose == "charge":
-                # شارژ کیف پول
-                new_balance = user.get("balance", 0) + price
-                await users_col.update_one({"user_id": user_id}, {"$set": {"balance": new_balance}})
-                await bot.send_message(user_id, f"✅ تراکنش شما تایید شد.\nمبلغ {price:,} تومان به کیف پول شما اضافه شد.")
-            else:
-                # خرید مستقیم پلن و اتصال به مرزبان
-                await bot.send_message(user_id, f"✅ پرداخت شما تایید شد.\nدر حال ساخت کانفیگ {purpose} برای شما...")
-                
-                # --- بخش اتصال به مرزبان ---
-                # توجه: اینجا باید تابع ساخت اکانت مرزبان خود را صدا بزنید
-                # مثال: config_link = await create_marzban_account(user_id, purpose)
-                config_link = "لینک کانفیگ شما به زودی اینجا قرار می‌گیرد" 
-                
-                await bot.send_message(user_id, f"🚀 کانفیگ شما آماده شد:\n`{config_link}`", parse_mode="Markdown")
-        
-        await call.message.edit_text(f"✅ تراکنش کاربر {user_id} تایید و اعمال شد.")
+        # ۱. دریافت توکن از مرزبان (مطابق عکس شما)
+        token = await get_marzban_token() #
+        if not token:
+            return await call.answer("❌ خطا در اتصال به پنل مرزبان", show_alert=True)
+
+        if purpose == "deposit":
+            # عملیات شارژ کیف پول در دیتابیس
+            await users_col.update_one({"user_id": user_id}, {"$inc": {"balance": price}})
+            await bot.send_message(user_id, f"✅ مبلغ {price:,} تومان به کیف پول شما اضافه شد.")
+        else:
+            # ۲. ساخت اکانت در مرزبان (خرید مستقیم)
+            # در اینجا باید درخواست POST برای ساخت User ارسال شود
+            headers = {"Authorization": f"Bearer {token}"}
+            payload = {
+                "username": f"user_{user_id}_{random.randint(100, 999)}",
+                "data_limit": int(purpose.replace('GB', '')) * 1024 * 1024 * 1024 if 'GB' in purpose else 0,
+                "expire": 0 # بدون انقضا طبق کانفیگ شما
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{config.PANEL_URL}/api/user", json=payload, headers=headers) as resp:
+                    if resp.status == 200:
+                        user_data = await resp.json()
+                        sub_url = user_data.get('subscription_url')
+                        await bot.send_message(user_id, f"✅ پرداخت تایید شد!\n🚀 کانفیگ شما:\n`{sub_url}`", parse_mode="Markdown")
+                    else:
+                        await bot.send_message(user_id, "⚠️ پرداخت تایید شد اما خطایی در ساخت اکانت رخ داد. لطفاً به پشتیبانی پیام دهید.")
+
+        await call.message.edit_text(f"✅ تایید شد برای کاربر: {user_id}")
 
     elif action == "reject":
-        await bot.send_message(user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.")
-        await call.message.edit_text(f"❌ تراکنش کاربر {user_id} رد شد.")
+        await bot.send_message(user_id, "❌ متاسفانه رسید ارسالی شما رد شد.")
+        await call.message.edit_text(f"❌ رد شد برای کاربر: {user_id}")
 
     await call.answer()
+
 
 
 
