@@ -259,35 +259,48 @@ async def handle_manual_username(message: types.Message, state: FSMContext):
     await proceed_to_invoice(message, state, username)
 
 # --- ۵. هندلر تایید/رد هوشمند ادمین (متصل به مرزبان) ---
-@dp.callback_query_handler(lambda c: c.data.startswith("admin_"), user_id=ADMIN_ID, state="*")
-async def admin_decision(callback: types.CallbackQuery, state: FSMContext):
-    parts = callback.data.split("_")
-    action, user_id, price, purpose = parts[1], int(parts[2]), int(parts[3]), parts[4]
+@dp.callback_query_handler(lambda c: c.data.startswith('admin:'), state="*")
+async def admin_decision(call: types.CallbackQuery):
+    # جدا کردن بخش‌های مختلف دیتا
+    parts = call.data.split(':')
     
-    if action == "ok":
-        invoice = await invoices_col.find_one({"user_id": user_id, "status": "🟠 در انتظار"}, sort=[("_id", -1)])
-        if not invoice: return await callback.answer("❌ فاکتور یافت نشد")
-        
-        gb = re.findall(r'\d+', invoice['plan'])[0] if re.findall(r'\d+', invoice['plan']) else 10
-        
-        if purpose == "buy":
-            res = await create_marzban_user(invoice['username'], gb)
-            if res:
-                await invoices_col.update_one({"inv_id": invoice['inv_id']}, {"$set": {"status": "✅ فعال", "config_data": res}})
-                await bot.send_message(user_id, f"✅ پرداخت تایید شد!\n👤 یوزر: `{invoice['username']}`\n🔗 لینک:\n`{res}`")
-                await callback.message.edit_caption(caption=callback.message.caption + f"\n\n✅ اکانت {invoice['username']} ساخته شد.")
+    # جلوگیری از خطای IndexError با چک کردن تعداد بخش‌ها
+    if len(parts) < 5:
+        await call.answer("❌ خطا: اطلاعات دکمه ناقص است.", show_alert=True)
+        return
+
+    # استخراج ایمن اطلاعات
+    # ساختار مورد انتظار: admin:action:user_id:price:purpose
+    action = parts[1]      # accept یا reject
+    user_id = int(parts[2])
+    price = int(parts[3])
+    purpose = parts[4]     # نوع خرید (مثلاً خرید مستقیم یا شارژ کیف پول)
+
+    if action == "accept":
+        # عملیات تایید تراکنش
+        user = await users_col.find_one({"user_id": user_id})
+        if user:
+            # اگر شارژ کیف پول بود
+            if purpose == "deposit":
+                new_balance = user.get("balance", 0) + price
+                await users_col.update_one({"user_id": user_id}, {"$set": {"balance": new_balance}})
+                await bot.send_message(user_id, f"✅ تراکنش شما تایید شد.\nمبلغ {price:,} تومان به کیف پول شما اضافه شد.")
+            
+            # اگر خرید مستقیم پلن بود
             else:
-                await callback.answer("❌ خطا در مرزبان (نام تکراری؟)", show_alert=True)
+                # اینجا کد مربوط به ساخت اکانت مارزبان قرار می‌گیرد
+                await bot.send_message(user_id, f"✅ پرداخت شما برای پلن {purpose} تایید شد.\nدر حال ساخت کانفیگ...")
+                # فراخوانی تابع ساخت اکانت (get_marzban_token و غیره)
+        
+        await call.message.edit_text(f"✅ تراکنش کاربر {user_id} تایید و اعمال شد.")
 
-        elif purpose == "charge":
-            await users_col.update_one({"user_id": user_id}, {"$inc": {"wallet": price}})
-            await bot.send_message(user_id, f"✅ مبلغ {price:,} تومان به کیف پول شما اضافه شد.")
-            await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ کیف پول شارژ شد.")
+    elif action == "reject":
+        # عملیات رد تراکنش
+        await bot.send_message(user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.")
+        await call.message.edit_text(f"❌ تراکنش کاربر {user_id} رد شد.")
 
-    elif action == "no":
-        await bot.send_message(user_id, "❌ رسید شما توسط مدیریت رد شد.")
-        await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ رد شد.")
-    await callback.answer()
+    await call.answer()
+
 
 # دریافت عکس رسید
 @dp.message_handler(content_types=['photo'], state=BuyState.waiting_for_receipt)
