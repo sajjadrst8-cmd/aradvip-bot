@@ -6,7 +6,10 @@ from aiogram import types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-
+class BuyState(StatesGroup):
+    choosing_plan = State()
+    entering_username = State()
+    waiting_for_receipt = State()
 class AdminState(StatesGroup):
     waiting_for_broadcast_msg = State()
     waiting_for_user_search = State()
