@@ -166,3 +166,8 @@ async def send_direct_msg(message: types.Message, state: FSMContext):
         await message.answer("❌ ارسال پیام ناموفق بود (احتمالاً کاربر ربات را بلاک کرده).")
     
     await state.finish()
+
+@dp.callback_query_handler(lambda c: c.data == "admin_charge_wallet", state="*")
+async def back_to_admin_charge(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await callback.message.edit_text("💰 بخش شارژ کیف پول:", reply_markup=nav.admin_charge_menu())
