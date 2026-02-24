@@ -168,6 +168,18 @@ def confirm_all_charge(amount):
         InlineKeyboardButton("❌ خیر، لغو شود", callback_data="admin_charge_wallet")
     )
     return kb
+# منوی عملیات روی کاربر (برای شارژ تکی یا تنظیمات)
+def admin_user_ops_menu(target_user_id):
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("💰 شارژ حساب", callback_data=f"op_charge_{target_user_id}"),
+        InlineKeyboardButton("✉️ ارسال پیام", callback_data=f"op_msg_{target_user_id}")
+    )
+    kb.add(
+        InlineKeyboardButton("❌ حذف کاربر", callback_data=f"op_delete_{target_user_id}"),
+        InlineKeyboardButton("🔙 بازگشت", callback_data="admin_panel")
+    )
+    return kb
 
 
 def register_menu():
