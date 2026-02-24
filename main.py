@@ -3,6 +3,7 @@ from aiogram import executor
 from loader import dp
 import handlers 
 import admin_handlers
+import marzban_handlers
 logging.basicConfig(level=logging.INFO)
 
 if __name__ == '__main__':
