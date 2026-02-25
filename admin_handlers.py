@@ -182,3 +182,23 @@ async def show_stats(callback: types.CallbackQuery):
         f"📊 آمار ربات:\n\n👥 کل کاربران: {total_users}\n🔗 وضعیت پنل: {status}",
         reply_markup=nav.admin_panel()
     )
+@dp.callback_query_handler(lambda c: c.data.startswith("admin:"), state="*")
+async def admin_decision(call: types.CallbackQuery):
+    # ساختار دیتا: admin:action:user_id:price:purpose
+    data = call.data.split(":")
+    action = data[1]
+    target_user_id = data[2]
+    amount = data[3]
+    plan_name = data[4]
+
+    if action == "accept":
+        # ۱. فعال‌سازی در پنل مرزبان (باید تابعش را صدا بزنی)
+        # ۲. اطلاع‌رسانی به کاربر
+        await bot.send_message(target_user_id, f"✅ تراکنش شما به مبلغ {amount} تایید شد!\nاشتراک {plan_name} برای شما فعال گردید.")
+        await call.message.edit_caption(f"✅ این رسید تایید شد.\nمبلغ: {amount}\nکاربر: {target_user_id}")
+    
+    elif action == "reject":
+        await bot.send_message(target_user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
+        await call.message.edit_caption(f"❌ این رسید رد شد.\nکاربر: {target_user_id}")
+    
+    await call.answer()
