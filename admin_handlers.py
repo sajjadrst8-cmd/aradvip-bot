@@ -2,8 +2,6 @@ from aiogram import types
 from aiogram.dispatcher import FSMContext
 from loader import dp, bot, ADMIN_ID
 import markups as nav
-import qrcode
-import io
 import re
 import marzban_handlers
 from database import invoices_col, users_col
@@ -246,7 +244,7 @@ async def admin_decision(call: types.CallbackQuery):
         except Exception as e:
             # نمایش دقیق ارور برای اینکه بفهمیم مشکل از کجاست
             await call.answer(f"❌ خطای غیرمنتظره: {str(e)}", show_alert=True)
-            
+
     elif action == "reject":
         await bot.send_message(target_user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
         await call.message.edit_caption(f"❌ این رسید رد شد.\nکاربر: {target_user_id}")
