@@ -207,13 +207,14 @@ async def get_marzban_user_usage(username):
 
 
 def generate_random_username():
-
-    chars = string.ascii_lowercase + string.digits
-
+    # پیشوند ثابت شما
+    prefix = "AradVIP_ARV"
+    
+    # ساخت ۶ کاراکتر تصادفی از اعداد و حروف بزرگ برای امنیت و عدم تکرار
+    chars = string.ascii_uppercase + string.digits
     random_part = ''.join(random.choice(chars) for _ in range(6))
-
-    return f"Arad_{random_part}"
-
+    
+    return f"{prefix}{random_part}"
 
 
 async def get_crypto_prices():
