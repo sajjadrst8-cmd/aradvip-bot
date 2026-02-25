@@ -42,3 +42,12 @@ async def back_to_main(call: types.CallbackQuery, state: FSMContext):
 async def support_handler(call: types.CallbackQuery):
     await call.message.answer("💎 برای ارتباط با پشتیبانی به آیدی @Arad_Support پیام دهید.")
     await call.answer()
+
+@dp.callback_query_handler(lambda c: c.data == "buy_new", state="*")
+async def process_buy_new(call: types.CallbackQuery):
+    # این تابع منوی انتخاب نوع سرویس (V2ray یا Biubiu) را باز می‌کند
+    await call.message.edit_text(
+        "🚀 لطفاً نوع سرویس مورد نظر خود را انتخاب کنید:",
+        reply_markup=nav.buy_menu()
+    )
+    await call.answer()
