@@ -202,58 +202,49 @@ async def admin_decision(call: types.CallbackQuery):
             import marzban_handlers
             from database import invoices_col #
             
-            # ۱. استخراج اطلاعات از دیتای دکمه
+            # ۱. استخراج اطلاعات از دیتای دکمه (admin:action:user_id:price:plan:username)
             fixed_username = data[5] 
+            target_user_id = int(data[2])
             
             match = re.search(r'\d+', plan_name)
             data_gb = match.group() if match else "5"
             
-            # ۲. ساخت اکانت در مرزبان با یوزرنیم فیکس شده
+            # ۲. ساخت اکانت در مرزبان
             sub_url = await marzban_handlers.create_marzban_user(fixed_username, data_gb)
             
             if sub_url:
-                # --- بخش جدید: ثبت در دیتابیس برای نمایش در «اشتراک‌های من» ---
-                # وضعیت فاکتور را از pending به success تغییر می‌دهیم و یوزرنیم و لینک را ذخیره می‌کنیم
+                # ۳. آپدیت وضعیت فاکتور در دیتابیس
+                # وضعیت را از "🟠 در انتظار" به "success" تغییر می‌دهیم
                 await invoices_col.update_one(
-                    {"user_id": int(target_user_id), "status": "🟠 در انتظار", "amount": int(amount)},
+                    {"user_id": target_user_id, "status": "🟠 در انتظار", "amount": int(amount)},
                     {"$set": {
-                        "status": "success", 
+                        "status": "✅ پرداخت موفق", 
                         "username": fixed_username, 
                         "sub_url": sub_url
                     }}
                 )
 
-                # ۳. طراحی متن پیام نهایی
+                # ۴. طراحی متن پیام برای کاربر
                 caption_text = (
                     f"✅ **اشتراک شما با موفقیت فعال شد!**\n\n"
                     f"👤 **نام کاربری:** `{fixed_username}`\n"
-                    f"🌐 **وضعیت:** `فعال (Active)`\n"
+                    f"🌐 **وضعیت:** `Active`\n"
                     f"📊 **حجم کل:** `{data_gb} GB`\n"
-                    f"⏳ **مهلت استفاده:** `بدون محدودیت زمانی`\n\n"
-                    f"🔗 **لینک اتصال اختصاصی:**\n"
+                    f"⏳ **مهلت:** `بدون محدودیت زمانی`\n\n"
+                    f"🔗 **لینک اختصاصی شما:**\n"
                     f"`{sub_url}`\n\n"
-                    f"💡 لینک بالا را کپی کرده و در برنامه مورد نظر وارد (Import) کنید."
+                    f"💡 برای استفاده، لینک را در اپلیکیشن کپی کنید."
                 )
 
-                # ۴. ارسال مستقیم پیام به کاربر (به جای ادیت، پیام جدید می‌دهیم تا بیاید پایین)
-                await bot.send_message(
-                    chat_id=target_user_id,
-                    text=caption_text,
-                    parse_mode="Markdown"
-                )
-                
-                # ۵. اطلاع‌رسانی به ادمین روی خود رسید
-                await call.message.edit_caption(
-                    f"✅ **رسید تایید و اکانت ساخته شد**\n"
-                    f"👤 یوزرنیم: `{fixed_username}`\n"
-                    f"💰 مبلغ: {amount} تومان",
-                    parse_mode="Markdown"
-                )
+                # ۵. ارسال پیام به کاربر و ادیت رسید ادمین
+                await bot.send_message(target_user_id, caption_text, parse_mode="Markdown")
+                await call.message.edit_caption(f"✅ تایید شد.\n👤 یوزر: {fixed_username}\n💰 مبلغ: {amount}")
             else:
-                await call.answer("❌ خطا: پنل مرزبان پاسخ نداد.", show_alert=True)
+                await call.answer("❌ خطا در اتصال به مرزبان", show_alert=True)
 
         except Exception as e:
-            await call.answer(f"❌ خطای غیرمنتظره: {str(e)}", show_alert=True)
+            await call.answer(f"❌ خطای سیستم: {str(e)}", show_alert=True)
+
     elif action == "reject":
         await bot.send_message(target_user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
         await call.message.edit_caption(f"❌ این رسید رد شد.\nکاربر: {target_user_id}")
