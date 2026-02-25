@@ -186,67 +186,84 @@ async def show_stats(callback: types.CallbackQuery):
     )
 @dp.callback_query_handler(lambda c: c.data.startswith("admin:"), state="*")
 async def admin_decision(call: types.CallbackQuery):
-    # ساختار دیتا: admin:action:user_id:price:purpose
+    # ساختار دیتا: admin:action:user_id:price:plan_name:username
     data = call.data.split(":")
     action = data[1]
-    target_user_id = data[2]
+    target_user_id = int(data[2])
     amount = data[3]
     plan_name = data[4]
-    fixed_username = data[5]
-
-    # در فایل admin_handlers.py بخش accept را پیدا و اینگونه اصلاح کن:
+    
+    # اطمینان از وجود یوزرنیم در دیتای دکمه (ایندکس 5)
+    fixed_username = data[5] if len(data) > 5 else "Unknown"
 
     if action == "accept":
         try:
             import re
             import marzban_handlers
-            from database import invoices_col #
+            from database import invoices_col  #
             
-            # ۱. استخراج اطلاعات از دیتای دکمه (admin:action:user_id:price:plan:username)
-            fixed_username = data[5] 
-            target_user_id = int(data[2])
-            
+            # استخراج عدد حجم از نام پلن (مثلاً از 10GB عدد 10 را می‌گیرد)
             match = re.search(r'\d+', plan_name)
             data_gb = match.group() if match else "5"
             
-            # ۲. ساخت اکانت در مرزبان
+            # ۱. ساخت اکانت در پنل مرزبان
             sub_url = await marzban_handlers.create_marzban_user(fixed_username, data_gb)
             
             if sub_url:
-                # ۳. آپدیت وضعیت فاکتور در دیتابیس
-                # وضعیت را از "🟠 در انتظار" به "success" تغییر می‌دهیم
+                # ۲. آپدیت وضعیت فاکتور به success برای نمایش در «اشتراک‌های من» و «فاکتورها»
+                # نکته: وضعیت فعلی در دیتابیس "🟠 در انتظار" است
                 await invoices_col.update_one(
                     {"user_id": target_user_id, "status": "🟠 در انتظار", "amount": int(amount)},
                     {"$set": {
-                        "status": "✅ پرداخت موفق", 
+                        "status": "success", 
                         "username": fixed_username, 
                         "sub_url": sub_url
                     }}
                 )
 
-                # ۴. طراحی متن پیام برای کاربر
-                caption_text = (
+                # ۳. ارسال پیام موفقیت و لینک به کاربر
+                success_text = (
                     f"✅ **اشتراک شما با موفقیت فعال شد!**\n\n"
-                    f"👤 **نام کاربری:** `{fixed_username}`\n"
-                    f"🌐 **وضعیت:** `Active`\n"
-                    f"📊 **حجم کل:** `{data_gb} GB`\n"
-                    f"⏳ **مهلت:** `بدون محدودیت زمانی`\n\n"
-                    f"🔗 **لینک اختصاصی شما:**\n"
+                    f"👤 نام کاربری: `{fixed_username}`\n"
+                    f"📊 حجم پلن: `{data_gb} GB`\n"
+                    f"🔗 لینک اتصال اختصاصی شما:\n"
                     f"`{sub_url}`\n\n"
-                    f"💡 برای استفاده، لینک را در اپلیکیشن کپی کنید."
+                    f"💡 برای استفاده، لینک را کپی و در برنامه خود وارد (Import) کنید."
                 )
-
-                # ۵. ارسال پیام به کاربر و ادیت رسید ادمین
-                await bot.send_message(target_user_id, caption_text, parse_mode="Markdown")
-                await call.message.edit_caption(f"✅ تایید شد.\n👤 یوزر: {fixed_username}\n💰 مبلغ: {amount}")
+                await bot.send_message(target_user_id, success_text, parse_mode="Markdown")
+                
+                # ۴. تغییر کپشن رسید برای ادمین
+                await call.message.edit_caption(
+                    f"✅ **رسید تایید و اکانت ساخته شد**\n"
+                    f"👤 کاربر: `{target_user_id}`\n"
+                    f"🆔 یوزرنیم: `{fixed_username}`\n"
+                    f"💰 مبلغ: {amount} تومان",
+                    parse_mode="Markdown"
+                )
             else:
-                await call.answer("❌ خطا در اتصال به مرزبان", show_alert=True)
+                await call.answer("❌ خطا: پنل مرزبان پاسخ نداد. تنظیمات PANEL_URL را چک کنید.", show_alert=True)
 
         except Exception as e:
-            await call.answer(f"❌ خطای سیستم: {str(e)}", show_alert=True)
+            await call.answer(f"❌ خطای غیرمنتظره: {str(e)}", show_alert=True)
 
     elif action == "reject":
-        await bot.send_message(target_user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
-        await call.message.edit_caption(f"❌ این رسید رد شد.\nکاربر: {target_user_id}")
+        # اطلاع‌رسانی به کاربر در صورت رد شدن رسید
+        reject_text = (
+            "❌ **متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.**\n\n"
+            "مواردی که باید بررسی کنید:\n"
+            "۱. تصویر ارسالی واضح باشد.\n"
+            "۲. مبلغ و تاریخ تراکنش درست باشد.\n"
+            "در صورت بروز مشکل با پشتیبانی در ارتباط باشید."
+        )
+        await bot.send_message(target_user_id, reject_text, parse_mode="Markdown")
+        
+        # آپدیت وضعیت در دیتابیس به "کنسل شده"
+        from database import invoices_col
+        await invoices_col.update_one(
+            {"user_id": target_user_id, "status": "🟠 در انتظار", "amount": int(amount)},
+            {"$set": {"status": "❌ رد شده"}}
+        )
+        
+        await call.message.edit_caption(f"❌ این رسید رد شد.\n👤 کاربر: `{target_user_id}`", parse_mode="Markdown")
     
     await call.answer()
