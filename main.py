@@ -2,8 +2,9 @@ import logging
 from aiogram import executor
 from loader import dp
 
-# اولویت‌بندی ایمپورت هندلرها (بسیار مهم)
+# در فایل main.py
 import buy_handlers
+import payment_handlers  # <--- این خط حتماً باید اضافه شود
 import admin_handlers
 import marzban_handlers
 import handlers # همیشه آخرین مورد باشد
