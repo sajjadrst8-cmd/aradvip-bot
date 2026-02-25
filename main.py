@@ -1,15 +1,12 @@
 import logging
 from aiogram import executor
 from loader import dp
+import admin_handlers
+import marzban_handlers
+import buy_handlers
+import handlers
 
-# --- وارد کردن هندلرها به ترتیب اولویت ---
-# ترتیب مهم است: ابتدا بخش‌های تخصصی و در آخر بخش‌های عمومی
-import admin_handlers    # مدیریت تایید/رد و آمار
-import marzban_handlers # توابع مربوط به API مرزبان
-import buy_handlers      # بخش جدید خرید V2ray و BiuBiu (که جدا کردیم)
-import handlers          # دستورات عمومی مثل /start و منوها
 
-# تنظیمات لاگ برای مشاهده خطاها در Railway
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
