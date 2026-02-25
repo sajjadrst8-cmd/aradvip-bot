@@ -52,3 +52,44 @@ async def process_buy_new(call: types.CallbackQuery):
     )
     await call.answer()
 
+# --- هندلر حساب کاربری ---
+@dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
+async def my_account_handler(call: types.CallbackQuery):
+    user_id = call.from_user.id
+    user_data = get_user(user_id) # فرض بر اینکه این تابع در database.py وجود دارد
+    
+    wallet_balance = user_data[2] if user_data else 0 # دریافت موجودی از دیتابیس
+    
+    text = (
+        f"👤 **حساب کاربری شما**\n\n"
+        f"🆔 شناسه عددی: `{user_id}`\n"
+        f"💰 موجودی کیف پول: {wallet_balance:,} تومان\n\n"
+        f"🎁 با شارژ کیف پول می‌توانید سریع‌تر خرید کنید."
+    )
+    
+    # استفاده از منوی شارژ که در markups تعریف کردی
+    await call.message.edit_text(text, reply_markup=nav.charge_menu(), parse_mode="Markdown")
+    await call.answer()
+
+# --- هندلر اشتراک‌های من ---
+@dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
+async def my_subs_handler(call: types.CallbackQuery):
+    user_id = call.from_user.id
+    # اینجا باید لیست اشتراک‌ها را از دیتابیس بگیری
+    # subs = get_user_subscriptions(user_id) 
+    
+    # فعلاً برای نمایش:
+    text = "📜 **لیست اشتراک‌های فعال شما:**\n\nدر حال حاضر اشتراک فعالی ندارید."
+    
+    await call.message.edit_text(text, reply_markup=nav.main_menu(user_id), parse_mode="Markdown")
+    await call.answer("لیست در حال به‌روزرسانی است", show_alert=False)
+
+# --- هندلر فاکتورهای من ---
+@dp.callback_query_handler(lambda c: c.data == "my_invs", state="*")
+async def my_invoices_handler(call: types.CallbackQuery):
+    user_id = call.from_user.id
+    # اینجا باید لیست فاکتورها را نمایش دهی
+    text = "🧾 **تاریخچه فاکتورهای شما:**\n\nفاکتور پرداخت نشده‌ای یافت نشد."
+    
+    await call.message.edit_text(text, reply_markup=nav.main_menu(user_id), parse_mode="Markdown")
+    await call.answer()
