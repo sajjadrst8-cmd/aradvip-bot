@@ -199,10 +199,10 @@ async def admin_decision(call: types.CallbackQuery):
     if action == "accept":
         try:
             import re
-            import marzban_handlers #
+            import marzban_handlers
+            from database import invoices_col #
             
             # ۱. استخراج اطلاعات از دیتای دکمه
-            # توجه: طبق دیتای جدید که گفتم، ثابت‌نام (fixed_username) در بخش آخر (ایندی‌کس ۵) است
             fixed_username = data[5] 
             
             match = re.search(r'\d+', plan_name)
@@ -212,7 +212,18 @@ async def admin_decision(call: types.CallbackQuery):
             sub_url = await marzban_handlers.create_marzban_user(fixed_username, data_gb)
             
             if sub_url:
-                # ۳. طراحی متن پیام نهایی (بدون QR Code)
+                # --- بخش جدید: ثبت در دیتابیس برای نمایش در «اشتراک‌های من» ---
+                # وضعیت فاکتور را از pending به success تغییر می‌دهیم و یوزرنیم و لینک را ذخیره می‌کنیم
+                await invoices_col.update_one(
+                    {"user_id": int(target_user_id), "status": "🟠 در انتظار", "amount": int(amount)},
+                    {"$set": {
+                        "status": "success", 
+                        "username": fixed_username, 
+                        "sub_url": sub_url
+                    }}
+                )
+
+                # ۳. طراحی متن پیام نهایی
                 caption_text = (
                     f"✅ **اشتراک شما با موفقیت فعال شد!**\n\n"
                     f"👤 **نام کاربری:** `{fixed_username}`\n"
@@ -224,7 +235,7 @@ async def admin_decision(call: types.CallbackQuery):
                     f"💡 لینک بالا را کپی کرده و در برنامه مورد نظر وارد (Import) کنید."
                 )
 
-                # ۴. ارسال مستقیم پیام به کاربر
+                # ۴. ارسال مستقیم پیام به کاربر (به جای ادیت، پیام جدید می‌دهیم تا بیاید پایین)
                 await bot.send_message(
                     chat_id=target_user_id,
                     text=caption_text,
@@ -239,12 +250,10 @@ async def admin_decision(call: types.CallbackQuery):
                     parse_mode="Markdown"
                 )
             else:
-                await call.answer("❌ خطا: پنل مرزبان پاسخ نداد. تنظیمات PANEL_URL را چک کنید.", show_alert=True)
+                await call.answer("❌ خطا: پنل مرزبان پاسخ نداد.", show_alert=True)
 
         except Exception as e:
-            # نمایش دقیق ارور برای اینکه بفهمیم مشکل از کجاست
             await call.answer(f"❌ خطای غیرمنتظره: {str(e)}", show_alert=True)
-
     elif action == "reject":
         await bot.send_message(target_user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
         await call.message.edit_caption(f"❌ این رسید رد شد.\nکاربر: {target_user_id}")
