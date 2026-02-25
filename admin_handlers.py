@@ -2,6 +2,9 @@ from aiogram import types
 from aiogram.dispatcher import FSMContext
 from loader import dp, bot, ADMIN_ID
 import markups as nav
+import qrcode
+import io
+import re
 import marzban_handlers
 from database import invoices_col, users_col
 from bson import ObjectId
@@ -196,38 +199,51 @@ async def admin_decision(call: types.CallbackQuery):
 
     if action == "accept":
         try:
-            # ۱. استخراج حجم از نام پلن (مثلاً از '5GB' عدد 5 را می‌گیرد)
-            import re
-            data_gb = re.findall(r'\d+', plan_name)[0] 
+            # ۱. استخراج حجم و ساخت اکانت
+            match = re.search(r'\d+', plan_name)
+            data_gb = match.group() if match else "5"
+            username = marzban_handlers.generate_random_username() #
             
-            # ۲. فراخوانی تابع ساخت کاربر از فایل marzban_handlers
-            import marzban_handlers
-            # ساخت یک یوزرنیم رندوم یا استفاده از یوزرنیم کاربر (اگر ذخیره کرده باشید)
-            username = marzban_handlers.generate_random_username()
-            
-            # ۳. ساخت اکانت در پنل مرزبان
-            sub_url = await marzban_handlers.create_marzban_user(username, data_gb)
+            sub_url = await marzban_handlers.create_marzban_user(username, data_gb) #
             
             if sub_url:
-                # ۴. ارسال لینک اشتراک واقعی برای کاربر
-                welcome_msg = (
-                    f"✅ **تراکنش شما تایید شد!**\n\n"
-                    f"💎 پلن: {plan_name}\n"
-                    f"👤 نام کاربری: `{username}`\n\n"
-                    f"🔗 **لینک اشتراک شما (V2ray):**\n"
-                    f"`{sub_url}`\n\n"
-                    f"⚠️ لطفاً لینک خود را در اختیار دیگران قرار ندهید."
-                )
-                await bot.send_message(target_user_id, welcome_msg, parse_mode="Markdown")
+                # ۲. ساخت QR Code در حافظه (بدون ذخیره فایل)
+                qr = qrcode.QRCode(version=1, box_size=10, border=5)
+                qr.add_data(sub_url)
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="black", back_color="white")
                 
-                # ۵. آپدیت پیام ادمین
-                await call.message.edit_caption(f"✅ تایید و در مرزبان ساخته شد.\n👤 یوزر: {username}\n💰 مبلغ: {amount}")
+                byte_io = io.BytesIO()
+                img.save(byte_io, 'PNG')
+                byte_io.seek(0)
+
+                # ۳. طراحی متن پیام مشابه عکس ارسالی شما
+                caption_text = (
+                    f"✅ **اشتراک شما با موفقیت فعال شد!**\n\n"
+                    f"👤 **نام کاربری:** `{username}`\n"
+                    f"🌐 **وضعیت:** `Active`\n"
+                    f"📊 **حجم کل:** `{data_gb} GB`\n"
+                    f"⏳ **تاریخ انقضا:** `بدون محدودیت`\n\n" # طبق تنظیمات expire=0 در marzban_handlers
+                    f"🔗 **لینک اتصال:**\n`{sub_url}`\n\n"
+                    f"📸 **راهنما:** QR Code بالا را در اپلیکیشن خود اسکن کنید یا لینک را کپی و Import کنید."
+                )
+
+                # ۴. ارسال عکس QR Code به همراه توضیحات برای کاربر
+                await bot.send_photo(
+                    chat_id=target_user_id,
+                    photo=byte_io,
+                    caption=caption_text,
+                    parse_mode="Markdown"
+                )
+                
+                # ۵. بروزرسانی پیام ادمین
+                await call.message.edit_caption(f"✅ رسید تایید شد و اشتراک {data_gb}GB برای کاربر ارسال گردید.")
             else:
-                await call.message.answer("❌ خطا در ساخت اکانت مرزبان! اتصال پنل را چک کنید.")
+                await call.answer("❌ خطا در ساخت اکانت در پنل مرزبان", show_alert=True)
 
         except Exception as e:
-            await call.message.answer(f"❌ خطای سیستمی: {e}")
-    
+            await call.answer(f"❌ خطای سیستم در تولید QR: {e}", show_alert=True)
+            
     elif action == "reject":
         await bot.send_message(target_user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
         await call.message.edit_caption(f"❌ این رسید رد شد.\nکاربر: {target_user_id}")
