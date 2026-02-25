@@ -2,23 +2,20 @@ import logging
 from aiogram import executor
 from loader import dp
 
-# --- اضافه کردن هندلرهای دیگر ---
+# اولویت‌بندی ایمپورت هندلرها (بسیار مهم)
+import buy_handlers
 import admin_handlers
 import marzban_handlers
-import buy_handlers
-import handlers
+import handlers # همیشه آخرین مورد باشد
 
-# ۱. اول لاگر را تعریف کن (این بخش خیلی مهم است)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__) # این خط باید قبل از تابع on_startup باشد
+# تنظیمات لاگر برای نمایش اتفاقات در Railway
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# ۲. حالا تابع on_startup می‌تواند از logger استفاده کند
 async def on_startup(dispatcher):
-    print("🚀 Bot is Online!")
-    logger.info("ربات با موفقیت در ری‌ل‌وی اجرا شد.")
+    # این خط را طبق لاگ Railway اصلاح کردم
+    logger.info("🚀 ربات با موفقیت آنلاین شد و در حال شنود پیام‌هاست.")
 
 if __name__ == '__main__':
+    # استفاده از skip_updates برای نادیده گرفتن پیام‌های زمان قطعی
     executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
