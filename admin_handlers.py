@@ -194,18 +194,19 @@ async def admin_decision(call: types.CallbackQuery):
     target_user_id = data[2]
     amount = data[3]
     plan_name = data[4]
+    fixed_username = data[5]
 
     # در فایل admin_handlers.py بخش accept را پیدا و اینگونه اصلاح کن:
 
     if action == "accept":
         try:
+            import re
+            import marzban_handlers
             # ۱. استخراج حجم و ساخت اکانت
             match = re.search(r'\d+', plan_name)
             data_gb = match.group() if match else "5"
-            username = marzban_handlers.generate_random_username() #
-            
-            sub_url = await marzban_handlers.create_marzban_user(username, data_gb) #
-            
+            sub_url = await marzban_handlers.create_marzban_user(fixed_username, data_gb)
+             
             if sub_url:
                 # ۲. ساخت QR Code در حافظه (بدون ذخیره فایل)
                 qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -243,7 +244,7 @@ async def admin_decision(call: types.CallbackQuery):
 
         except Exception as e:
             await call.answer(f"❌ خطای سیستم در تولید QR: {e}", show_alert=True)
-            
+
     elif action == "reject":
         await bot.send_message(target_user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
         await call.message.edit_caption(f"❌ این رسید رد شد.\nکاربر: {target_user_id}")
