@@ -201,50 +201,52 @@ async def admin_decision(call: types.CallbackQuery):
     if action == "accept":
         try:
             import re
-            import marzban_handlers
-            # ۱. استخراج حجم و ساخت اکانت
+            import marzban_handlers #
+            
+            # ۱. استخراج اطلاعات از دیتای دکمه
+            # توجه: طبق دیتای جدید که گفتم، ثابت‌نام (fixed_username) در بخش آخر (ایندی‌کس ۵) است
+            fixed_username = data[5] 
+            
             match = re.search(r'\d+', plan_name)
             data_gb = match.group() if match else "5"
+            
+            # ۲. ساخت اکانت در مرزبان با یوزرنیم فیکس شده
             sub_url = await marzban_handlers.create_marzban_user(fixed_username, data_gb)
-             
+            
             if sub_url:
-                # ۲. ساخت QR Code در حافظه (بدون ذخیره فایل)
-                qr = qrcode.QRCode(version=1, box_size=10, border=5)
-                qr.add_data(sub_url)
-                qr.make(fit=True)
-                img = qr.make_image(fill_color="black", back_color="white")
-                
-                byte_io = io.BytesIO()
-                img.save(byte_io, 'PNG')
-                byte_io.seek(0)
-
-                # ۳. طراحی متن پیام مشابه عکس ارسالی شما
+                # ۳. طراحی متن پیام نهایی (بدون QR Code)
                 caption_text = (
                     f"✅ **اشتراک شما با موفقیت فعال شد!**\n\n"
-                    f"👤 **نام کاربری:** `{username}`\n"
-                    f"🌐 **وضعیت:** `Active`\n"
+                    f"👤 **نام کاربری:** `{fixed_username}`\n"
+                    f"🌐 **وضعیت:** `فعال (Active)`\n"
                     f"📊 **حجم کل:** `{data_gb} GB`\n"
-                    f"⏳ **تاریخ انقضا:** `بدون محدودیت`\n\n" # طبق تنظیمات expire=0 در marzban_handlers
-                    f"🔗 **لینک اتصال:**\n`{sub_url}`\n\n"
-                    f"📸 **راهنما:** QR Code بالا را در اپلیکیشن خود اسکن کنید یا لینک را کپی و Import کنید."
+                    f"⏳ **مهلت استفاده:** `بدون محدودیت زمانی`\n\n"
+                    f"🔗 **لینک اتصال اختصاصی:**\n"
+                    f"`{sub_url}`\n\n"
+                    f"💡 لینک بالا را کپی کرده و در برنامه مورد نظر وارد (Import) کنید."
                 )
 
-                # ۴. ارسال عکس QR Code به همراه توضیحات برای کاربر
-                await bot.send_photo(
+                # ۴. ارسال مستقیم پیام به کاربر
+                await bot.send_message(
                     chat_id=target_user_id,
-                    photo=byte_io,
-                    caption=caption_text,
+                    text=caption_text,
                     parse_mode="Markdown"
                 )
                 
-                # ۵. بروزرسانی پیام ادمین
-                await call.message.edit_caption(f"✅ رسید تایید شد و اشتراک {data_gb}GB برای کاربر ارسال گردید.")
+                # ۵. اطلاع‌رسانی به ادمین روی خود رسید
+                await call.message.edit_caption(
+                    f"✅ **رسید تایید و اکانت ساخته شد**\n"
+                    f"👤 یوزرنیم: `{fixed_username}`\n"
+                    f"💰 مبلغ: {amount} تومان",
+                    parse_mode="Markdown"
+                )
             else:
-                await call.answer("❌ خطا در ساخت اکانت در پنل مرزبان", show_alert=True)
+                await call.answer("❌ خطا: پنل مرزبان پاسخ نداد. تنظیمات PANEL_URL را چک کنید.", show_alert=True)
 
         except Exception as e:
-            await call.answer(f"❌ خطای سیستم در تولید QR: {e}", show_alert=True)
-
+            # نمایش دقیق ارور برای اینکه بفهمیم مشکل از کجاست
+            await call.answer(f"❌ خطای غیرمنتظره: {str(e)}", show_alert=True)
+            
     elif action == "reject":
         await bot.send_message(target_user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
         await call.message.edit_caption(f"❌ این رسید رد شد.\nکاربر: {target_user_id}")
