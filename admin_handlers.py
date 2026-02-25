@@ -191,11 +191,41 @@ async def admin_decision(call: types.CallbackQuery):
     amount = data[3]
     plan_name = data[4]
 
+    # در فایل admin_handlers.py بخش accept را پیدا و اینگونه اصلاح کن:
+
     if action == "accept":
-        # ۱. فعال‌سازی در پنل مرزبان (باید تابعش را صدا بزنی)
-        # ۲. اطلاع‌رسانی به کاربر
-        await bot.send_message(target_user_id, f"✅ تراکنش شما به مبلغ {amount} تایید شد!\nاشتراک {plan_name} برای شما فعال گردید.")
-        await call.message.edit_caption(f"✅ این رسید تایید شد.\nمبلغ: {amount}\nکاربر: {target_user_id}")
+        try:
+            # ۱. استخراج حجم از نام پلن (مثلاً از '5GB' عدد 5 را می‌گیرد)
+            import re
+            data_gb = re.findall(r'\d+', plan_name)[0] 
+            
+            # ۲. فراخوانی تابع ساخت کاربر از فایل marzban_handlers
+            import marzban_handlers
+            # ساخت یک یوزرنیم رندوم یا استفاده از یوزرنیم کاربر (اگر ذخیره کرده باشید)
+            username = marzban_handlers.generate_random_username()
+            
+            # ۳. ساخت اکانت در پنل مرزبان
+            sub_url = await marzban_handlers.create_marzban_user(username, data_gb)
+            
+            if sub_url:
+                # ۴. ارسال لینک اشتراک واقعی برای کاربر
+                welcome_msg = (
+                    f"✅ **تراکنش شما تایید شد!**\n\n"
+                    f"💎 پلن: {plan_name}\n"
+                    f"👤 نام کاربری: `{username}`\n\n"
+                    f"🔗 **لینک اشتراک شما (V2ray):**\n"
+                    f"`{sub_url}`\n\n"
+                    f"⚠️ لطفاً لینک خود را در اختیار دیگران قرار ندهید."
+                )
+                await bot.send_message(target_user_id, welcome_msg, parse_mode="Markdown")
+                
+                # ۵. آپدیت پیام ادمین
+                await call.message.edit_caption(f"✅ تایید و در مرزبان ساخته شد.\n👤 یوزر: {username}\n💰 مبلغ: {amount}")
+            else:
+                await call.message.answer("❌ خطا در ساخت اکانت مرزبان! اتصال پنل را چک کنید.")
+
+        except Exception as e:
+            await call.message.answer(f"❌ خطای سیستمی: {e}")
     
     elif action == "reject":
         await bot.send_message(target_user_id, "❌ متاسفانه رسید ارسالی شما مورد تایید قرار نگرفت.\nدر صورت بروز مشکل با پشتیبانی در ارتباط باشید.")
