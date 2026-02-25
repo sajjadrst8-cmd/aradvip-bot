@@ -40,7 +40,7 @@ async def back_to_main(call: types.CallbackQuery, state: FSMContext):
 # سایر هندلرهای عمومی (مثل دکمه پشتیبانی)
 @dp.callback_query_handler(lambda c: c.data == "support", state="*")
 async def support_handler(call: types.CallbackQuery):
-    await call.message.answer("💎 برای ارتباط با پشتیبانی به آیدی @Arad_Support پیام دهید.")
+    await call.message.answer("💎 برای ارتباط با پشتیبانی به آیدی @Aradvip پیام دهید.")
     await call.answer()
 
 @dp.callback_query_handler(lambda c: c.data == "buy_new", state="*")
