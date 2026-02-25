@@ -5,3 +5,5 @@ persiantools
 aiohttp==3.8.5
 setuptools
 wheel
+qrcode
+pillow
