@@ -74,7 +74,7 @@ async def biubiu_pay_direct(callback: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data == "random_name", state=BuyState.entering_username)
 async def set_random_name(callback: types.CallbackQuery, state: FSMContext):
     random_str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    username = f"user_{random_str}"
+    username = f"Aradvip_{random_str}"
     
     await state.update_data(chosen_v2ray_username=username)
     await BuyState.waiting_for_receipt.set()
