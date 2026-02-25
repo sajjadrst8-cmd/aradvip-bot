@@ -1,14 +1,14 @@
 ADMIN_ID = 863961919
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-def admin_verify_payment(user_id, price, purpose):
-    kb = InlineKeyboardMarkup(row_width=2)
-    # هماهنگ شده با هندلر admin_decision که قبلاً نوشتیم
-    kb.add(
-        InlineKeyboardButton("✅ تایید", callback_data=f"admin:accept:{user_id}:{price}:{purpose}"),
-        InlineKeyboardButton("❌ رد تراکنش", callback_data=f"admin:reject:{user_id}:{price}:{purpose}")
+def admin_verify_payment(user_id, price, plan_name, username):
+    markup = InlineKeyboardMarkup(row_width=2)
+    # اضافه کردن یوزرنیم به دیتای دکمه (بخش آخر)
+    markup.add(
+        InlineKeyboardButton("✅ تایید", callback_data=f"admin:accept:{user_id}:{price}:{plan_name}:{username}"),
+        InlineKeyboardButton("❌ رد", callback_data=f"admin:reject:{user_id}:{price}:{plan_name}:{username}")
     )
-    return kb
+    return markup
 
 
 # --- منوی اصلی ---
