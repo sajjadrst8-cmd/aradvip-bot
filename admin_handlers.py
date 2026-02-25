@@ -2,6 +2,7 @@ from aiogram import types
 from aiogram.dispatcher import FSMContext
 from loader import dp, bot, ADMIN_ID
 import markups as nav
+import marzban_handlers
 from database import invoices_col, users_col
 from bson import ObjectId
 
