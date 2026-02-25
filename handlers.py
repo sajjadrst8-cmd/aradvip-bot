@@ -75,15 +75,29 @@ async def my_account_handler(call: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
 async def my_subs_handler(call: types.CallbackQuery):
     user_id = call.from_user.id
-    # اینجا باید لیست اشتراک‌ها را از دیتابیس بگیری
-    # subs = get_user_subscriptions(user_id) 
     
-    # فعلاً برای نمایش:
-    text = "📜 **لیست اشتراک‌های فعال شما:**\n\nدر حال حاضر اشتراک فعالی ندارید."
+    # پیدا کردن اشتراک‌های تایید شده کاربر از دیتابیس
+    # توجه: باید مطمئن شوی موقع تایید ادمین، وضعیت اینویس به success تغییر کند
+    user_subs = await invoices_col.find({"user_id": user_id, "status": "success"}).to_list(length=100)
     
-    await call.message.edit_text(text, reply_markup=nav.main_menu(user_id), parse_mode="Markdown")
-    await call.answer("لیست در حال به‌روزرسانی است", show_alert=False)
-
+    if not user_subs:
+        text = "📜 **لیست اشتراک‌های فعال شما:**\n\n❌ در حال حاضر اشتراک فعالی یافت نشد."
+        await call.message.edit_text(text, reply_markup=nav.main_menu(user_id), parse_mode="Markdown")
+    else:
+        text = "📜 **لیست اشتراک‌های شما:**\n\nبرای مشاهده جزئیات هر اشتراک روی آن کلیک کنید:"
+        kb = InlineKeyboardMarkup(row_width=1)
+        
+        for sub in user_subs:
+            # نمایش نام کاربری مرزبان روی دکمه
+            username = sub.get('username', 'نامعلوم')
+            kb.add(InlineKeyboardButton(f"🚀 {username}", callback_data=f"view_sub_{username}"))
+            
+        kb.add(InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
+        
+        # با ارسال reply_markup جدید، دکمه‌های قبلی جایگزین می‌شوند
+        await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    
+    await call.answer()
 # --- هندلر فاکتورهای من ---
 @dp.callback_query_handler(lambda c: c.data == "my_invs", state="*")
 async def my_invoices_handler(call: types.CallbackQuery):
