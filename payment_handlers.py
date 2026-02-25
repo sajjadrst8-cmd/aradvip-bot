@@ -13,10 +13,10 @@ async def handle_payment(message: types.Message, state: FSMContext):
     price = data.get("price")
     plan_name = data.get("plan_name")
 
-    # ارسال به ادمین
     try:
+        # ارسال عکس به ادمین
         await bot.send_photo(
-            chat_id=ADMIN_ID, # مطمئن شو این متغیر در loader مقدار دارد
+            chat_id=ADMIN_ID,
             photo=message.photo[-1].file_id,
             caption=(
                 f"👤 **رسید جدید دریافت شد**\n\n"
@@ -28,14 +28,13 @@ async def handle_payment(message: types.Message, state: FSMContext):
             reply_markup=nav.admin_verify_payment(user_id, price, plan_name)
         )
 
-        # پیام به کاربر
+        # تایید به کاربر
         await message.answer(
             "✅ رسید شما با موفقیت برای مدیریت ارسال شد.\n"
             "لطفاً تا تایید نهایی صبور باشید.",
-            reply_markup=nav.main_menu(user_id) # بازگشت به منوی اصلی
+            reply_markup=nav.main_menu(user_id)
         )
-        await state.finish() # پایان وضعیت خرید بعد از ارسال موفق
-        
+        await state.finish()
+
     except Exception as e:
-        await message.answer("❌ خطا در ارسال رسید به ادمین. لطفاً به پشتیبانی پیام دهید.")
-        print(f"Error: {e}")
+        await message.answer(f"❌ خطایی در ارسال رسید رخ داد: {e}")
