@@ -1,19 +1,15 @@
+# در فایل main.py
 import logging
 from aiogram import executor
 from loader import dp
 
-# تنظیمات لاگینگ را ابتدا انجام بده
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-# حالا هندلرها را ایمپورت کن (ترتیب مهم است)
+# اول هندلرهای اختصاصی
+import buy_handlers
 import admin_handlers
 import marzban_handlers
-import buy_handlers
-import handlers  # این همیشه آخری باشد چون هندلرهای عمومی در آن است
+# در آخر هندلرهای عمومی و استارت
+import handlers 
+
 
 async def on_startup(dispatcher):
     print("🚀 Bot is Online!")
