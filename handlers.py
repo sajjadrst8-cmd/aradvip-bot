@@ -198,5 +198,6 @@ async def repay_invoice(call: types.CallbackQuery, state: FSMContext):
     
     await call.message.edit_text(
         f"💳 در حال پرداخت مجدد فاکتور به مبلغ {inv['amount']:,} تومان...\nلطفاً روش پرداخت را انتخاب کنید:",
-        reply_markup=nav.payment_methods() # نمایش دکمه‌های انتخاب روش پرداخت
+        reply_markup=nav.payment_methods(inv_id) # inv_id را داخل پرانتز بگذار
+
     )
