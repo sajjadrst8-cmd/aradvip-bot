@@ -144,6 +144,43 @@ async def view_invoice_details(call: types.CallbackQuery):
     kb.add(InlineKeyboardButton("🔙 بازگشت به لیست", callback_data="my_invoices"))
     await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
+@dp.callback_query_handler(lambda c: c.data.startswith("view_sub_"), state="*")
+async def view_subscription_details(call: types.CallbackQuery):
+    username = call.data.replace("view_sub_", "")
+    from marzban_handlers import get_marzban_user #
+    
+    # دریافت اطلاعات لحظه‌ای از پنل مرزبان
+    user_info = await get_marzban_user(username)
+    
+    if not user_info:
+        return await call.answer("❌ اطلاعات اشتراک در پنل یافت نشد.", show_alert=True)
+
+    # استخراج مقادیر و تبدیل واحدها
+    status = "🟢 فعال" if user_info['status'] == 'active' else "🔴 غیرفعال"
+    used_traffic = round(user_info['used_traffic'] / (1024**3), 2)  # تبدیل به GB
+    total_traffic = round(user_info['data_limit'] / (1024**3), 2) if user_info['data_limit'] else 0
+    remaining_traffic = round(total_traffic - used_traffic, 2)
+    
+    expire_date = user_info.get('expire_date', 'بدون محدودیت') #
+    sub_url = user_info.get('subscription_url', '')
+
+    text = (
+        f"📊 **جزئیات اشتراک شما:**\n\n"
+        f"👤 نام کاربری: `{username}`\n"
+        f"✅ وضعیت: {status}\n"
+        f"📤 مصرف شده: `{used_traffic} GiB`\n"
+        f"📥 باقی‌مانده: `{remaining_traffic} GiB`\n"
+        f"📅 تاریخ انقضا: `{expire_date}`\n\n"
+        f"🔗 **لینک اشتراک:**\n"
+        f"`{sub_url}`"
+    )
+
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"view_sub_{username}"))
+    kb.add(InlineKeyboardButton("🔙 بازگشت به لیست", callback_data="my_subs"))
+    
+    await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+
 # --- بخش شروع مجدد فرآیند پرداخت (Repay) ---
 @dp.callback_query_handler(lambda c: c.data.startswith("repay_"), state="*")
 async def repay_invoice(call: types.CallbackQuery, state: FSMContext):
