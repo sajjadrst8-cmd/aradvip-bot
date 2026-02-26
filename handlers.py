@@ -1,3 +1,4 @@
+from database import invoices_col
 from aiogram import types
 from loader import dp, bot
 from database import get_user
@@ -5,7 +6,6 @@ from aiogram.dispatcher import FSMContext
 from states import BuyState
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import markups as nav
-    
 @dp.message_handler(commands=['start'], state="*")
 async def start_handler(message: types.Message, state: FSMContext):
     await state.finish() # ریست کردن وضعیت کاربر
@@ -54,12 +54,14 @@ async def process_buy_new(call: types.CallbackQuery):
     await call.answer()
 
 # --- هندلر حساب کاربری ---
+# --- هندلر حساب کاربری ---
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
 async def my_account_handler(call: types.CallbackQuery):
     user_id = call.from_user.id
-    user_data = get_user(user_id) # فرض بر اینکه این تابع در database.py وجود دارد
+    # اصلاح اول: اضافه کردن await و اصلاح نحوه گرفتن موجودی
+    user_data = await get_user(user_id) 
     
-    wallet_balance = user_data[2] if user_data else 0 # دریافت موجودی از دیتابیس
+    wallet_balance = user_data.get('wallet', 0) # در دیتابیس شما کلید آن wallet است
     
     text = (
         f"👤 **حساب کاربری شما**\n\n"
@@ -68,62 +70,56 @@ async def my_account_handler(call: types.CallbackQuery):
         f"🎁 با شارژ کیف پول می‌توانید سریع‌تر خرید کنید."
     )
     
-    # استفاده از منوی شارژ که در markups تعریف کردی
     await call.message.edit_text(text, reply_markup=nav.charge_menu(), parse_mode="Markdown")
     await call.answer()
+
 
 # --- هندلر اشتراک‌های من ---
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
 async def my_subs_handler(call: types.CallbackQuery):
     user_id = call.from_user.id
-    
-    # پیدا کردن اشتراک‌های تایید شده کاربر از دیتابیس
-    # توجه: باید مطمئن شوی موقع تایید ادمین، وضعیت اینویس به success تغییر کند
-    user_subs = await invoices_col.find({"user_id": user_id, "status": "success"}).to_list(length=100)
+    # جستجو با هر دو فرمت (عددی و رشته‌ای) برای اطمینان
+    user_subs = await invoices_col.find({
+        "$or": [{"user_id": user_id}, {"user_id": str(user_id)}],
+        "status": "success"
+    }).to_list(length=100)
     
     if not user_subs:
-        text = "📜 **لیست اشتراک‌های فعال شما:**\n\n❌ در حال حاضر اشتراک فعالی یافت نشد."
-        await call.message.edit_text(text, reply_markup=nav.main_menu(user_id), parse_mode="Markdown")
+        # اگر اشتراکی نبود، به جای "هیچ اتفاقی نیفتادن"، پیام را تغییر می‌دهیم
+        await call.message.edit_text("📜 **شما در حال حاضر اشتراک فعالی ندارید.**", reply_markup=nav.main_menu(user_id), parse_mode="Markdown")
     else:
-        text = "📜 **لیست اشتراک‌های شما:**\n\nبرای مشاهده جزئیات هر اشتراک روی آن کلیک کنید:"
         kb = InlineKeyboardMarkup(row_width=1)
-        
         for sub in user_subs:
-            # نمایش نام کاربری مرزبان روی دکمه
             username = sub.get('username', 'نامعلوم')
-            kb.add(InlineKeyboardButton(f"🚀 {username}", callback_data=f"view_sub_{username}"))
-            
-        kb.add(InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
-        
-        # با ارسال reply_markup جدید، دکمه‌های قبلی جایگزین می‌شوند
-        await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    
+            kb.add(InlineKeyboardButton(f"🚀 اشتراک: {username}", callback_data=f"view_sub_{username}"))
+        kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
+        await call.message.edit_text("📜 **لیست اشتراک‌های فعال شما:**", reply_markup=kb, parse_mode="Markdown")
     await call.answer()
+
 # --- هندلر فاکتورهای من ---
-# --- بخش نمایش لیست فاکتورها ---
 @dp.callback_query_handler(lambda c: c.data == "my_invoices", state="*")
 async def show_my_invoices(call: types.CallbackQuery):
     user_id = call.from_user.id
-    # دریافت فاکتورها از دیتابیس
-    invoices = await invoices_col.find({"user_id": user_id}).sort("date", -1).to_list(length=20)
+    # پیدا کردن تمام فاکتورهای کاربر
+    invoices = await invoices_col.find({
+        "$or": [{"user_id": user_id}, {"user_id": str(user_id)}]
+    }).sort("_id", -1).to_list(length=20)
     
     if not invoices:
         return await call.answer("❌ شما هنوز هیچ فاکتوری ندارید.", show_alert=True)
     
-    text = "🧾 **لیست فاکتورهای شما:**\n\nبرای مشاهده جزئیات، روی فاکتور کلیک کنید:"
+    text = "🧾 **تاریخچه تراکنش‌های شما:**"
     kb = InlineKeyboardMarkup(row_width=1)
-    
     for inv in invoices:
         status = inv.get('status', 'نامعلوم')
         amount = inv.get('amount', 0)
-        # تعیین آیکون بر اساس وضعیت موجود در دیتابیس
-        icon = "✅" if "success" in status or "پرداخت موفق" in status else "🟠" if "در انتظار" in status else "❌"
-        
-        btn_text = f"{icon} مبلغ: {amount:,} تومان | {inv.get('date', '')}"
-        kb.add(InlineKeyboardButton(btn_text, callback_data=f"view_inv_{inv['_id']}"))
+        icon = "✅" if status == "success" else "🟠" if "در انتظار" in status else "❌"
+        kb.add(InlineKeyboardButton(f"{icon} {amount:,} تومان | {inv.get('date', '')}", callback_data=f"view_inv_{inv['_id']}"))
     
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"))
+    kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
     await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await call.answer()
+
 
 # --- بخش نمایش جزئیات یک فاکتور خاص ---
 @dp.callback_query_handler(lambda c: c.data.startswith("view_inv_"), state="*")
@@ -154,6 +150,43 @@ async def view_invoice_details(call: types.CallbackQuery):
     kb.add(InlineKeyboardButton("🔙 بازگشت به لیست", callback_data="my_invoices"))
     await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
+@dp.callback_query_handler(lambda c: c.data.startswith("view_sub_"), state="*")
+async def view_subscription_details(call: types.CallbackQuery):
+    username = call.data.replace("view_sub_", "")
+    from marzban_handlers import get_marzban_user #
+    
+    # دریافت اطلاعات لحظه‌ای از پنل مرزبان
+    user_info = await get_marzban_user(username)
+    
+    if not user_info:
+        return await call.answer("❌ اطلاعات اشتراک در پنل یافت نشد.", show_alert=True)
+
+    # استخراج مقادیر و تبدیل واحدها
+    status = "🟢 فعال" if user_info['status'] == 'active' else "🔴 غیرفعال"
+    used_traffic = round(user_info['used_traffic'] / (1024**3), 2)  # تبدیل به GB
+    total_traffic = round(user_info['data_limit'] / (1024**3), 2) if user_info['data_limit'] else 0
+    remaining_traffic = round(total_traffic - used_traffic, 2)
+    
+    expire_date = user_info.get('expire_date', 'بدون محدودیت') #
+    sub_url = user_info.get('subscription_url', '')
+
+    text = (
+        f"📊 **جزئیات اشتراک شما:**\n\n"
+        f"👤 نام کاربری: `{username}`\n"
+        f"✅ وضعیت: {status}\n"
+        f"📤 مصرف شده: `{used_traffic} GiB`\n"
+        f"📥 باقی‌مانده: `{remaining_traffic} GiB`\n"
+        f"📅 تاریخ انقضا: `{expire_date}`\n\n"
+        f"🔗 **لینک اشتراک:**\n"
+        f"`{sub_url}`"
+    )
+
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(InlineKeyboardButton("🔄 بروزرسانی", callback_data=f"view_sub_{username}"))
+    kb.add(InlineKeyboardButton("🔙 بازگشت به لیست", callback_data="my_subs"))
+    
+    await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+
 # --- بخش شروع مجدد فرآیند پرداخت (Repay) ---
 @dp.callback_query_handler(lambda c: c.data.startswith("repay_"), state="*")
 async def repay_invoice(call: types.CallbackQuery, state: FSMContext):
@@ -168,5 +201,6 @@ async def repay_invoice(call: types.CallbackQuery, state: FSMContext):
     
     await call.message.edit_text(
         f"💳 در حال پرداخت مجدد فاکتور به مبلغ {inv['amount']:,} تومان...\nلطفاً روش پرداخت را انتخاب کنید:",
-        reply_markup=nav.payment_methods() # نمایش دکمه‌های انتخاب روش پرداخت
+        reply_markup=nav.payment_methods(inv_id) # inv_id را داخل پرانتز بگذار
+
     )

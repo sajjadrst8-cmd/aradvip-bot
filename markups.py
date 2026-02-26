@@ -21,7 +21,7 @@ def main_menu(user_id):
     
     kb.row(
         InlineKeyboardButton("📜 اشتراک‌های من", callback_data="my_subs"), 
-        InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invs")
+        InlineKeyboardButton("🧾 فاکتورهای من", callback_data="my_invoices") # این بخش اصلاح شد
     )
     
     kb.add(InlineKeyboardButton("👤 حساب کاربری", callback_data="my_account"))
