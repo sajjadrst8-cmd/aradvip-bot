@@ -53,12 +53,14 @@ async def process_buy_new(call: types.CallbackQuery):
     await call.answer()
 
 # --- هندلر حساب کاربری ---
+# --- هندلر حساب کاربری ---
 @dp.callback_query_handler(lambda c: c.data == "my_account", state="*")
 async def my_account_handler(call: types.CallbackQuery):
     user_id = call.from_user.id
-    user_data = get_user(user_id) # فرض بر اینکه این تابع در database.py وجود دارد
+    # اصلاح اول: اضافه کردن await و اصلاح نحوه گرفتن موجودی
+    user_data = await get_user(user_id) 
     
-    wallet_balance = user_data[2] if user_data else 0 # دریافت موجودی از دیتابیس
+    wallet_balance = user_data.get('wallet', 0) # در دیتابیس شما کلید آن wallet است
     
     text = (
         f"👤 **حساب کاربری شما**\n\n"
@@ -67,9 +69,9 @@ async def my_account_handler(call: types.CallbackQuery):
         f"🎁 با شارژ کیف پول می‌توانید سریع‌تر خرید کنید."
     )
     
-    # استفاده از منوی شارژ که در markups تعریف کردی
     await call.message.edit_text(text, reply_markup=nav.charge_menu(), parse_mode="Markdown")
     await call.answer()
+
 
 # --- هندلر اشتراک‌های من ---
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
