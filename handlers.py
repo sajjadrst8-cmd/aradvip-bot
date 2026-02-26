@@ -75,44 +75,47 @@ async def my_account_handler(call: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
 async def my_subs_handler(call: types.CallbackQuery):
     user_id = call.from_user.id
-    # جستجو در دیتابیس برای فاکتورهای موفق کاربر
-    user_subs = await invoices_col.find({"user_id": user_id, "status": "success"}).to_list(length=100)
+    # جستجو با هر دو فرمت (عددی و رشته‌ای) برای اطمینان
+    user_subs = await invoices_col.find({
+        "$or": [{"user_id": user_id}, {"user_id": str(user_id)}],
+        "status": "success"
+    }).to_list(length=100)
     
     if not user_subs:
-        await call.message.edit_text("📜 **شما در حال حاضر اشتراک فعالی ندارید.**", reply_markup=nav.main_menu(user_id))
+        # اگر اشتراکی نبود، به جای "هیچ اتفاقی نیفتادن"، پیام را تغییر می‌دهیم
+        await call.message.edit_text("📜 **شما در حال حاضر اشتراک فعالی ندارید.**", reply_markup=nav.main_menu(user_id), parse_mode="Markdown")
     else:
         kb = InlineKeyboardMarkup(row_width=1)
         for sub in user_subs:
             username = sub.get('username', 'نامعلوم')
             kb.add(InlineKeyboardButton(f"🚀 اشتراک: {username}", callback_data=f"view_sub_{username}"))
-        
-        kb.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="main_menu"))
+        kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
         await call.message.edit_text("📜 **لیست اشتراک‌های فعال شما:**", reply_markup=kb, parse_mode="Markdown")
+    await call.answer()
 
 # --- هندلر فاکتورهای من ---
 @dp.callback_query_handler(lambda c: c.data == "my_invoices", state="*")
 async def show_my_invoices(call: types.CallbackQuery):
     user_id = call.from_user.id
-    # دریافت لیست تمام فاکتورها بر اساس آیدی عددی کاربر
-    invoices = await invoices_col.find({"user_id": user_id}).sort("_id", -1).to_list(length=20)
+    # پیدا کردن تمام فاکتورهای کاربر
+    invoices = await invoices_col.find({
+        "$or": [{"user_id": user_id}, {"user_id": str(user_id)}]
+    }).sort("_id", -1).to_list(length=20)
     
     if not invoices:
-        return await call.answer("❌ شما هنوز هیچ فاکتوری ثبت نکرده‌اید.", show_alert=True)
+        return await call.answer("❌ شما هنوز هیچ فاکتوری ندارید.", show_alert=True)
     
-    text = "🧾 **تاریخچه تراکنش‌های شما:**\n\nبرای مشاهده جزئیات، روی فاکتور کلik کنید:"
+    text = "🧾 **تاریخچه تراکنش‌های شما:**"
     kb = InlineKeyboardMarkup(row_width=1)
-    
     for inv in invoices:
         status = inv.get('status', 'نامعلوم')
         amount = inv.get('amount', 0)
-        # آیکون‌ها بر اساس وضعیت ثبت شده در دیتابیس
         icon = "✅" if status == "success" else "🟠" if "در انتظار" in status else "❌"
-        
-        btn_text = f"{icon} {amount:,} تومان | {inv.get('date', '')}"
-        kb.add(InlineKeyboardButton(btn_text, callback_data=f"view_inv_{inv['_id']}"))
+        kb.add(InlineKeyboardButton(f"{icon} {amount:,} تومان | {inv.get('date', '')}", callback_data=f"view_inv_{inv['_id']}"))
     
     kb.add(InlineKeyboardButton("🔙 بازگشت", callback_data="main_menu"))
     await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    await call.answer()
 
 
 # --- بخش نمایش جزئیات یک فاکتور خاص ---
